@@ -1,0 +1,6 @@
+
+ai-engine/.venv/
+__pycache__/
+*.py[cod]
+.env
+*.log
