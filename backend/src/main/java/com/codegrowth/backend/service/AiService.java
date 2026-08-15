@@ -46,7 +46,6 @@ public class AiService {
 
         try {
             String requestBody = objectMapper.writeValueAsString(request);
-
             HttpRequest httpRequest = HttpRequest.newBuilder()
                     .uri(URI.create(generateUrl))
                     .version(HttpClient.Version.HTTP_1_1)
