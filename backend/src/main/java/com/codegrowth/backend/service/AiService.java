@@ -12,6 +12,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 
 @Service
 public class AiService {
@@ -22,7 +23,10 @@ public class AiService {
     public AiService(
             ObjectMapper objectMapper,
             @Value("${codegrowth.ai.base-url:http://localhost:8000}") String baseUrl) {
-        this.httpClient = HttpClient.newHttpClient();
+        this.httpClient = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
         this.objectMapper = objectMapper;
         this.generateUrl = baseUrl.replaceAll("/$", "") + "/generate";
     }
@@ -33,8 +37,11 @@ public class AiService {
 
             HttpRequest httpRequest = HttpRequest.newBuilder()
                     .uri(URI.create(generateUrl))
+                    .version(HttpClient.Version.HTTP_1_1)
+                    .timeout(Duration.ofSeconds(130))
                     .header("Content-Type", "application/json")
                     .header("Accept", "application/json")
+                    .header("Content-Length", String.valueOf(requestBody.getBytes(StandardCharsets.UTF_8).length))
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
                     .build();
 
