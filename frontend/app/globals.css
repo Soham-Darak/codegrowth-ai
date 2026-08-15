@@ -1,0 +1,14 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Arial, sans-serif; background: #0b0d12; color: #f5f7fb; }
+main { width: min(1100px, 92%); margin: 0 auto; padding: 72px 0; }
+.hero { max-width: 800px; margin-bottom: 48px; }
+.eyebrow { font-size: 12px; letter-spacing: 0.18em; opacity: 0.7; }
+h1 { font-size: clamp(42px, 7vw, 76px); line-height: 0.98; margin: 18px 0; }
+.hero p { font-size: 18px; color: #aeb5c2; }
+.workspace { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+form, article { padding: 24px; border: 1px solid #292e38; border-radius: 18px; background: #12151c; }
+label, h2 { display: block; margin: 0 0 14px; font-size: 16px; }
+textarea { width: 100%; min-height: 230px; resize: vertical; padding: 16px; border-radius: 12px; border: 1px solid #343a46; background: #0b0d12; color: #fff; font: inherit; }
+button { margin-top: 14px; padding: 12px 18px; border: 0; border-radius: 10px; cursor: pointer; font-weight: 700; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; color: #cbd2dd; font-family: Consolas, monospace; }
+@media (max-width: 760px) { .workspace { grid-template-columns: 1fr; } main { padding-top: 40px; } }
