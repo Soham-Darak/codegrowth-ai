@@ -24,11 +24,12 @@ public class AiService {
 
     public GenerateResponse generate(GenerateRequest request) {
         try {
-            String requestBody = objectMapper.writeValueAsString(request);
+            byte[] requestBody = objectMapper.writeValueAsBytes(request);
 
             return restClient.post()
                     .uri("/generate")
                     .contentType(MediaType.APPLICATION_JSON)
+                    .contentLength(requestBody.length)
                     .body(requestBody)
                     .retrieve()
                     .body(GenerateResponse.class);
