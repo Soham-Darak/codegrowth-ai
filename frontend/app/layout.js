@@ -1,4 +1,5 @@
 import "./globals.css";
+import CodeGrowthBackdrop from "./components/CodeGrowthBackdrop";
 
 export const metadata = {
   title: "CodeGrowth AI",
@@ -8,7 +9,10 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <CodeGrowthBackdrop />
+        {children}
+      </body>
     </html>
   );
 }
