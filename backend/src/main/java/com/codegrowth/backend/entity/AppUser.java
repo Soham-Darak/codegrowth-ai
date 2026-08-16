@@ -26,8 +26,11 @@ public class AppUser {
     private String password;
 
     @Enumerated(EnumType.STRING)
-    @Column(length = 20)
+    @Column(nullable = false, length = 20)
     private Role role = Role.STUDENT;
+
+    @Column(nullable = false)
+    private boolean enabled = true;
 
     protected AppUser() {
     }
@@ -41,6 +44,7 @@ public class AppUser {
         this.email = email;
         this.password = password;
         this.role = role == null ? Role.STUDENT : role;
+        this.enabled = true;
     }
 
     public Long getId() {
@@ -61,5 +65,17 @@ public class AppUser {
 
     public Role getRole() {
         return role == null ? Role.STUDENT : role;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setRole(Role role) {
+        this.role = role == null ? Role.STUDENT : role;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
     }
 }
