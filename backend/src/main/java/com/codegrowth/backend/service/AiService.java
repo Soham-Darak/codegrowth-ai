@@ -2,6 +2,7 @@ package com.codegrowth.backend.service;
 
 import com.codegrowth.backend.dto.GenerateRequest;
 import com.codegrowth.backend.dto.GenerateResponse;
+import com.codegrowth.backend.entity.AppUser;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -39,14 +40,14 @@ public class AiService {
         this.generateUrl = baseUrl.replaceAll("/$", "") + "/generate";
     }
 
-    public GenerateResponse generate(GenerateRequest request) {
+    public GenerateResponse generate(AppUser user, GenerateRequest request) {
         String prompt = request.prompt().trim();
         String cacheKey = cacheKey(prompt);
         String cached = cacheService.get(cacheKey);
 
         if (cached != null) {
             GenerateResponse result = new GenerateResponse("cache", cached);
-            historyService.save(prompt, result.response(), result.model());
+            historyService.save(user, prompt, result.response(), result.model());
             return result;
         }
 
@@ -72,7 +73,7 @@ public class AiService {
 
             GenerateResponse result = objectMapper.readValue(response.body(), GenerateResponse.class);
             cacheService.set(cacheKey, result.response());
-            historyService.save(prompt, result.response(), result.model());
+            historyService.save(user, prompt, result.response(), result.model());
             return result;
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to communicate with AI engine", exception);
