@@ -5,6 +5,8 @@ import com.codegrowth.backend.dto.LoginRequest;
 import com.codegrowth.backend.dto.RegisterRequest;
 import com.codegrowth.backend.entity.AppUser;
 import com.codegrowth.backend.entity.Role;
+import com.codegrowth.backend.entity.StudentProfile;
+import com.codegrowth.backend.entity.TeacherProfile;
 import com.codegrowth.backend.repository.AppUserRepository;
 import com.codegrowth.backend.repository.StudentProfileRepository;
 import com.codegrowth.backend.repository.TeacherProfileRepository;
@@ -33,44 +35,34 @@ public class AuthService {
 
     public AuthResponse register(RegisterRequest request) {
         String email = request.email().trim().toLowerCase();
-        if (userRepository.existsByEmailIgnoreCase(email)) {
-            throw new IllegalArgumentException("Email is already registered");
-        }
-
+        if (userRepository.existsByEmailIgnoreCase(email)) throw new IllegalArgumentException("Email is already registered");
         Role role = request.role() == null ? Role.STUDENT : request.role();
-        if (role == Role.ADMIN) {
-            throw new IllegalArgumentException("Admin accounts must be created by an existing administrator");
-        }
-
-        AppUser user = userRepository.save(new AppUser(
-                request.name().trim(), email,
-                passwordEncoder.encode(request.password()), role));
-
-        if (role == Role.STUDENT) {
-            studentProfileRepository.save(new com.codegrowth.backend.entity.StudentProfile(user));
-        } else if (role == Role.TEACHER) {
-            teacherProfileRepository.save(new com.codegrowth.backend.entity.TeacherProfile(user));
-        }
+        if (role == Role.ADMIN) throw new IllegalArgumentException("Admin accounts must be created by an existing administrator");
+        AppUser user = userRepository.save(new AppUser(request.name().trim(), email, passwordEncoder.encode(request.password()), role));
+        ensureProfile(user);
         return toResponse(user);
     }
 
     public AuthResponse login(LoginRequest request) {
         String email = request.email().trim().toLowerCase();
-        AppUser user = userRepository.findByEmailIgnoreCase(email)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid email or password"));
-        if (!user.isEnabled() || !passwordEncoder.matches(request.password(), user.getPassword())) {
-            throw new IllegalArgumentException("Invalid email or password");
-        }
+        AppUser user = userRepository.findByEmailIgnoreCase(email).orElseThrow(() -> new IllegalArgumentException("Invalid email or password"));
+        if (!user.isEnabled() || !passwordEncoder.matches(request.password(), user.getPassword())) throw new IllegalArgumentException("Invalid email or password");
+        ensureProfile(user);
         return toResponse(user);
     }
 
     public AuthResponse me(String email) {
-        return toResponse(userRepository.findByEmailIgnoreCase(email)
-                .orElseThrow(() -> new IllegalArgumentException("Authenticated user not found")));
+        AppUser user = userRepository.findByEmailIgnoreCase(email).orElseThrow(() -> new IllegalArgumentException("Authenticated user not found"));
+        ensureProfile(user);
+        return toResponse(user);
+    }
+
+    private void ensureProfile(AppUser user) {
+        if (user.getRole() == Role.STUDENT && studentProfileRepository.findByUserId(user.getId()).isEmpty()) studentProfileRepository.save(new StudentProfile(user));
+        if (user.getRole() == Role.TEACHER && teacherProfileRepository.findByUserId(user.getId()).isEmpty()) teacherProfileRepository.save(new TeacherProfile(user));
     }
 
     private AuthResponse toResponse(AppUser user) {
-        return new AuthResponse(user.getId(), user.getName(), user.getEmail(),
-                user.getRole().name(), jwtService.generateToken(user.getId(), user.getEmail(), user.getRole()));
+        return new AuthResponse(user.getId(), user.getName(), user.getEmail(), user.getRole().name(), jwtService.generateToken(user.getId(), user.getEmail(), user.getRole()));
     }
 }
