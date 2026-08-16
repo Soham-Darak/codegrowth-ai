@@ -8,17 +8,7 @@ export async function apiFetch(path, options = {}) {
   const response = await fetch(`/api/backend${path}`, { ...options, headers, cache: "no-store" });
   const text = await response.text();
   let data = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text || null;
-  }
-
-  if (response.status === 401 || response.status === 403) {
-    const error = new Error("Your session is no longer valid.");
-    error.status = response.status;
-    throw error;
-  }
+  try { data = text ? JSON.parse(text) : null; } catch { data = text || null; }
 
   if (!response.ok) {
     const message = typeof data === "object" && data
@@ -28,7 +18,6 @@ export async function apiFetch(path, options = {}) {
     error.status = response.status;
     throw error;
   }
-
   return data;
 }
 
@@ -38,11 +27,13 @@ export const apiPut = (path, body) => apiFetch(path, { method: "PUT", body: JSON
 export const apiPatch = (path, body) => apiFetch(path, { method: "PATCH", body: JSON.stringify(body) });
 export const apiDelete = (path) => apiFetch(path, { method: "DELETE" });
 
-export function handleAuthError(error, router) {
+export function handleAuthError(error) {
   if (error?.status === 401 || error?.status === 403) {
-    localStorage.removeItem("codegrowth_token");
-    localStorage.removeItem("codegrowth_user");
-    router.replace("/login");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("codegrowth_token");
+      localStorage.removeItem("codegrowth_user");
+      window.location.assign("/login");
+    }
     return true;
   }
   return false;
