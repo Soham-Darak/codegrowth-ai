@@ -15,10 +15,20 @@ function rolePath(role) {
 }
 
 const roles = [
-  { value: "STUDENT", label: "Student", description: "Learn, practice and build", icon: GraduationCap, color: "violet" },
-  { value: "TEACHER", label: "Teacher", description: "Teach, guide and analyze", icon: Users, color: "cyan" },
-  { value: "ADMIN", label: "Admin", description: "Manage and monitor the platform", icon: ShieldCheck, color: "amber" },
+  { value: "STUDENT", label: "Student", description: "Learn, practice and build", icon: GraduationCap },
+  { value: "TEACHER", label: "Teacher", description: "Teach, guide and analyze", icon: Users },
+  { value: "ADMIN", label: "Admin", description: "Created by an existing admin", icon: ShieldCheck, disabled: true },
 ];
+
+async function readResponse(response) {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { message: text };
+  }
+}
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -41,15 +51,17 @@ export default function RegisterPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || data.error || "Could not create your account.");
+      const data = await readResponse(response);
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `Registration failed (${response.status})`);
+      }
 
       const user = { userId: data.userId, name: data.name, email: data.email, role: data.role || form.role };
       localStorage.setItem("codegrowth_token", data.token);
       localStorage.setItem("codegrowth_user", JSON.stringify(user));
       router.push(rolePath(user.role));
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Could not create your account.");
     } finally {
       setLoading(false);
     }
@@ -73,7 +85,10 @@ export default function RegisterPage() {
               <div className="mb-7"><span className="text-[10px] font-semibold uppercase tracking-[.25em] text-violet-300">Get started</span><h2 className="mt-3 text-3xl font-semibold tracking-tight">Create your workspace</h2><p className="mt-2 text-sm leading-6 text-slate-500">Choose the role that matches how you use CodeGrowth.</p></div>
 
               <div className="mb-6 grid gap-2 sm:grid-cols-3">
-                {roles.map(({ value, label, description, icon: Icon }) => <button type="button" key={value} onClick={() => update("role", value)} className={`rounded-2xl border p-3.5 text-left transition ${form.role === value ? "border-white/20 bg-white/[0.07] shadow-lg shadow-black/20" : "border-white/8 bg-white/[0.025] hover:bg-white/[0.045]"}`}><Icon size={18} className={form.role === value ? "text-white" : "text-slate-600"} /><div className="mt-3 text-sm font-semibold">{label}</div><div className="mt-1 text-[10px] leading-4 text-slate-600">{description}</div></button>)}
+                {roles.map(({ value, label, description, icon: Icon, disabled }) => {
+                  const selected = form.role === value;
+                  return <button type="button" key={value} disabled={disabled} onClick={() => update("role", value)} className={`rounded-2xl border p-3.5 text-left transition ${disabled ? "cursor-not-allowed border-white/6 bg-white/[0.018] opacity-55" : selected ? "border-white/20 bg-white/[0.07] shadow-lg shadow-black/20" : "border-white/8 bg-white/[0.025] hover:bg-white/[0.045]"}`}><Icon size={18} className={selected ? "text-white" : disabled ? "text-slate-700" : "text-slate-600"} /><div className="mt-3 text-sm font-semibold">{label}</div><div className="mt-1 text-[10px] leading-4 text-slate-600">{description}</div></button>;
+                })}
               </div>
 
               <form onSubmit={register} className="space-y-4">
