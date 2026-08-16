@@ -14,6 +14,12 @@ function rolePath(role) {
   return value === "ADMIN" ? "/admin" : value === "TEACHER" ? "/teacher" : "/student";
 }
 
+async function readResponse(response) {
+  const text = await response.text();
+  if (!text) return {};
+  try { return JSON.parse(text); } catch { return { message: text }; }
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -32,15 +38,15 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || data.error || "Invalid email or password.");
+      const data = await readResponse(response);
+      if (!response.ok) throw new Error(data.message || data.error || `Login failed (${response.status})`);
 
       const user = { userId: data.userId, name: data.name, email: data.email, role: data.role || "STUDENT" };
       localStorage.setItem("codegrowth_token", data.token);
       localStorage.setItem("codegrowth_user", JSON.stringify(user));
       router.push(rolePath(user.role));
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Unable to sign in.");
     } finally {
       setLoading(false);
     }
@@ -58,7 +64,6 @@ export default function LoginPage() {
               <div className="mt-12 grid gap-3 sm:grid-cols-3"><div className="glass rounded-2xl p-4"><GraduationCap size={17} className="text-violet-300" /><div className="mt-4 text-sm font-medium">Students</div><div className="mt-1 text-[11px] text-slate-600">Learn + practice</div></div><div className="glass rounded-2xl p-4"><Users size={17} className="text-cyan-300" /><div className="mt-4 text-sm font-medium">Teachers</div><div className="mt-1 text-[11px] text-slate-600">Guide + analyze</div></div><div className="glass rounded-2xl p-4"><ShieldCheck size={17} className="text-amber-300" /><div className="mt-4 text-sm font-medium">Admins</div><div className="mt-1 text-[11px] text-slate-600">Control + observe</div></div></div>
             </motion.div>
           </section>
-
           <section className="relative z-10 flex items-center p-6 sm:p-10 lg:p-12">
             <motion.div initial={{ opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: .45 }} className="w-full">
               <div className="mb-8 lg:hidden"><div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-xl bg-white/10"><Code2 size={19} className="text-cyan-300" /></div><div><div className="text-sm font-semibold">CodeGrowth AI</div><div className="text-[10px] text-slate-500">Learning + engineering OS</div></div></div></div>
