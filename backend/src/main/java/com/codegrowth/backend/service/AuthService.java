@@ -4,6 +4,7 @@ import com.codegrowth.backend.dto.AuthResponse;
 import com.codegrowth.backend.dto.LoginRequest;
 import com.codegrowth.backend.dto.RegisterRequest;
 import com.codegrowth.backend.entity.AppUser;
+import com.codegrowth.backend.entity.Role;
 import com.codegrowth.backend.repository.AppUserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -29,11 +30,14 @@ public class AuthService {
             throw new IllegalArgumentException("Email is already registered");
         }
 
+        Role role = request.role() == null ? Role.STUDENT : request.role();
+
         AppUser user = userRepository.save(
                 new AppUser(
                         request.name().trim(),
                         email,
-                        passwordEncoder.encode(request.password())));
+                        passwordEncoder.encode(request.password()),
+                        role));
 
         return toResponse(user);
     }
@@ -55,6 +59,7 @@ public class AuthService {
                 user.getId(),
                 user.getName(),
                 user.getEmail(),
-                jwtService.generateToken(user.getId(), user.getEmail()));
+                user.getRole().name(),
+                jwtService.generateToken(user.getId(), user.getEmail(), user.getRole()));
     }
 }
