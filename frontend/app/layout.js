@@ -2,7 +2,7 @@ import "./globals.css";
 
 export const metadata = {
   title: "CodeGrowth AI",
-  description: "AI-assisted software engineering workspace",
+  description: "A local-first AI engineering workspace for learning, coding, and growth.",
 };
 
 export default function RootLayout({ children }) {
