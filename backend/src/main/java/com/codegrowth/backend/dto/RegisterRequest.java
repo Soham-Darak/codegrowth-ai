@@ -1,5 +1,6 @@
 package com.codegrowth.backend.dto;
 
+import com.codegrowth.backend.entity.Role;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -16,6 +17,8 @@ public record RegisterRequest(
 
         @NotBlank(message = "Password must not be blank")
         @Size(min = 8, max = 100, message = "Password must be between 8 and 100 characters")
-        String password
+        String password,
+
+        Role role
 ) {
 }
