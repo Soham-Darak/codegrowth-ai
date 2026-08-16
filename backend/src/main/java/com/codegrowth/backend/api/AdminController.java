@@ -2,8 +2,8 @@ package com.codegrowth.backend.api;
 
 import com.codegrowth.backend.entity.*;
 import com.codegrowth.backend.repository.*;
+import com.codegrowth.backend.service.PlatformHealthService;
 import java.util.*;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -13,10 +13,10 @@ import org.springframework.web.bind.annotation.*;
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminController {
     private final AppUserRepository users; private final StudentProfileRepository studentProfiles; private final TeacherProfileRepository teacherProfiles;
-    private final CourseRepository courses; private final EnrollmentRepository enrollments; private final AssignmentRepository assignments; private final SubmissionRepository submissions; private final AiGenerationRepository generations;
+    private final CourseRepository courses; private final EnrollmentRepository enrollments; private final AssignmentRepository assignments; private final SubmissionRepository submissions; private final AiGenerationRepository generations; private final PlatformHealthService health;
     public AdminController(AppUserRepository users, StudentProfileRepository studentProfiles, TeacherProfileRepository teacherProfiles, CourseRepository courses, EnrollmentRepository enrollments,
-                           AssignmentRepository assignments, SubmissionRepository submissions, AiGenerationRepository generations) {
-        this.users=users; this.studentProfiles=studentProfiles; this.teacherProfiles=teacherProfiles; this.courses=courses; this.enrollments=enrollments; this.assignments=assignments; this.submissions=submissions; this.generations=generations;
+                           AssignmentRepository assignments, SubmissionRepository submissions, AiGenerationRepository generations, PlatformHealthService health) {
+        this.users=users; this.studentProfiles=studentProfiles; this.teacherProfiles=teacherProfiles; this.courses=courses; this.enrollments=enrollments; this.assignments=assignments; this.submissions=submissions; this.generations=generations; this.health=health;
     }
     @GetMapping("/overview") public Map<String,Object> overview(){
         return Map.of("users",users.count(),"students",users.countByRole(Role.STUDENT),"teachers",users.countByRole(Role.TEACHER),"admins",users.countByRole(Role.ADMIN),"courses",courses.count(),"enrollments",enrollments.count(),"assignments",assignments.count(),"submissions",submissions.count(),"aiGenerations",generations.count());
@@ -37,6 +37,5 @@ public class AdminController {
     }
     @GetMapping("/courses") public List<Course> courses(){ return courses.findAll(); }
     @GetMapping("/analytics") public Map<String,Object> analytics(){ return Map.of("totalUsers",users.count(),"totalCourses",courses.count(),"totalEnrollments",enrollments.count(),"totalAssignments",assignments.count(),"totalSubmissions",submissions.count(),"totalAiGenerations",generations.count()); }
-    @GetMapping("/system") public Map<String,Object> system(){ return Map.of("backend","UP","database","UP","redis","UP","aiEngine","UP"); }
-    private AppUser user(Authentication a){ return users.findByEmailIgnoreCase(a.getName()).orElseThrow(); }
+    @GetMapping("/system") public Map<String,String> system(){ return health.check(); }
 }
