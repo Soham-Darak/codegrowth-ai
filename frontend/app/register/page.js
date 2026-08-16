@@ -3,14 +3,26 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, Code2, LockKeyhole, Mail, UserRound } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { ArrowRight, Code2, GraduationCap, LockKeyhole, Mail, ShieldCheck, UserRound, Users } from "lucide-react";
+import CodeGrowthScene from "@/components/visuals/CodeGrowthScene";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+
+function rolePath(role) {
+  const value = (role || "STUDENT").toUpperCase();
+  return value === "ADMIN" ? "/admin" : value === "TEACHER" ? "/teacher" : "/student";
+}
+
+const roles = [
+  { value: "STUDENT", label: "Student", description: "Learn, practice and build", icon: GraduationCap, color: "violet" },
+  { value: "TEACHER", label: "Teacher", description: "Teach, guide and analyze", icon: Users, color: "cyan" },
+  { value: "ADMIN", label: "Admin", description: "Manage and monitor the platform", icon: ShieldCheck, color: "amber" },
+];
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", role: "STUDENT" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -32,9 +44,10 @@ export default function RegisterPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || data.error || "Could not create your account.");
 
+      const user = { userId: data.userId, name: data.name, email: data.email, role: data.role || form.role };
       localStorage.setItem("codegrowth_token", data.token);
-      localStorage.setItem("codegrowth_user", JSON.stringify({ userId: data.userId, name: data.name, email: data.email }));
-      router.push("/dashboard");
+      localStorage.setItem("codegrowth_user", JSON.stringify(user));
+      router.push(rolePath(user.role));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -43,29 +56,35 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="min-h-screen px-5 py-8 text-slate-100">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl items-center justify-center">
-        <div className="grid w-full overflow-hidden rounded-3xl border border-white/10 bg-[#0b0f1a]/85 shadow-2xl shadow-black/40 backdrop-blur xl:grid-cols-[1.1fr_0.9fr]">
-          <section className="hidden border-r border-white/10 p-12 xl:block">
-            <div className="flex items-center gap-3 text-sm font-semibold tracking-wide"><span className="grid size-9 place-items-center rounded-xl bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-400/20"><Code2 size={19} /></span>CodeGrowth AI</div>
-            <div className="mt-24 max-w-lg"><p className="text-xs font-semibold uppercase tracking-[0.28em] text-indigo-300">Build your workspace</p><h1 className="mt-5 text-5xl font-semibold leading-[1.05] tracking-tight">One place for prompts, code, history and growth.</h1><p className="mt-6 text-base leading-7 text-slate-400">Start with local AI and keep the whole developer workflow inside one focused workspace.</p></div>
+    <main className="relative min-h-screen overflow-hidden bg-[#04070f] text-slate-100">
+      <CodeGrowthScene className="opacity-70" />
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-7xl items-center px-5 py-8 lg:px-10">
+        <div className="grid w-full overflow-hidden rounded-[2rem] border border-white/10 bg-black/25 shadow-2xl shadow-indigo-950/40 backdrop-blur-2xl lg:grid-cols-[1fr_1.05fr]">
+          <section className="relative hidden overflow-hidden border-r border-white/10 p-12 lg:block">
+            <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
+              <div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-xl bg-white/10 ring-1 ring-white/10"><Code2 size={19} className="text-violet-300" /></div><div><div className="text-sm font-semibold">CodeGrowth AI</div><div className="text-[10px] text-slate-500">Your AI learning + engineering OS</div></div></div>
+              <div className="mt-24 max-w-lg"><span className="text-[10px] font-semibold uppercase tracking-[.26em] text-violet-300">Choose your workspace</span><h1 className="mt-5 text-5xl font-semibold leading-[1.02] tracking-[-.04em]">The platform changes with <span className="bg-gradient-to-r from-violet-300 via-cyan-200 to-white bg-clip-text text-transparent">you.</span></h1><p className="mt-6 text-base leading-7 text-slate-400">Students get personalized growth. Teachers get classroom intelligence. Admins get full platform visibility.</p></div>
+            </motion.div>
           </section>
 
-          <section className="p-6 sm:p-10 lg:p-12">
-            <div className="mb-10 xl:hidden"><div className="flex items-center gap-3 font-semibold"><span className="grid size-9 place-items-center rounded-xl bg-indigo-500/15 text-indigo-300"><Code2 size={19} /></span>CodeGrowth AI</div></div>
-            <Card className="border-0 bg-transparent shadow-none">
-              <CardHeader className="px-0 pt-0"><CardTitle className="text-2xl">Create your account</CardTitle><CardDescription>Set up your personal AI engineering workspace.</CardDescription></CardHeader>
-              <CardContent className="px-0 pb-0">
-                <form onSubmit={register} className="space-y-4">
-                  <label className="block space-y-2 text-sm text-slate-300"><span>Name</span><div className="relative"><UserRound className="absolute left-3.5 top-3.5 text-slate-500" size={17} /><Input className="pl-10" value={form.name} onChange={(e) => update("name", e.target.value)} placeholder="Soham" required /></div></label>
-                  <label className="block space-y-2 text-sm text-slate-300"><span>Email</span><div className="relative"><Mail className="absolute left-3.5 top-3.5 text-slate-500" size={17} /><Input className="pl-10" value={form.email} onChange={(e) => update("email", e.target.value)} type="email" placeholder="you@example.com" required /></div></label>
-                  <label className="block space-y-2 text-sm text-slate-300"><span>Password</span><div className="relative"><LockKeyhole className="absolute left-3.5 top-3.5 text-slate-500" size={17} /><Input className="pl-10" value={form.password} onChange={(e) => update("password", e.target.value)} type="password" placeholder="At least 8 characters" minLength={8} required /></div></label>
-                  {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-3.5 py-3 text-sm text-red-300">{error}</div> : null}
-                  <Button className="mt-2 w-full" size="lg" disabled={loading}>{loading ? "Creating account..." : <>Create account <ArrowRight size={16} /></>}</Button>
-                </form>
-                <p className="mt-6 text-center text-sm text-slate-500">Already have an account? <Link href="/login" className="font-medium text-indigo-300 hover:text-indigo-200">Sign in</Link></p>
-              </CardContent>
-            </Card>
+          <section className="relative z-10 p-6 sm:p-10 lg:p-12">
+            <motion.div initial={{ opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: .45 }}>
+              <div className="mb-8 lg:hidden"><div className="flex items-center gap-3 font-semibold"><span className="grid size-10 place-items-center rounded-xl bg-white/10"><Code2 size={19} className="text-violet-300" /></span>CodeGrowth AI</div></div>
+              <div className="mb-7"><span className="text-[10px] font-semibold uppercase tracking-[.25em] text-violet-300">Get started</span><h2 className="mt-3 text-3xl font-semibold tracking-tight">Create your workspace</h2><p className="mt-2 text-sm leading-6 text-slate-500">Choose the role that matches how you use CodeGrowth.</p></div>
+
+              <div className="mb-6 grid gap-2 sm:grid-cols-3">
+                {roles.map(({ value, label, description, icon: Icon }) => <button type="button" key={value} onClick={() => update("role", value)} className={`rounded-2xl border p-3.5 text-left transition ${form.role === value ? "border-white/20 bg-white/[0.07] shadow-lg shadow-black/20" : "border-white/8 bg-white/[0.025] hover:bg-white/[0.045]"}`}><Icon size={18} className={form.role === value ? "text-white" : "text-slate-600"} /><div className="mt-3 text-sm font-semibold">{label}</div><div className="mt-1 text-[10px] leading-4 text-slate-600">{description}</div></button>)}
+              </div>
+
+              <form onSubmit={register} className="space-y-4">
+                <label className="block space-y-2 text-sm text-slate-300"><span>Name</span><div className="relative"><UserRound className="absolute left-3.5 top-3.5 text-slate-600" size={17} /><Input className="h-12 rounded-xl border-white/10 bg-white/[0.035] pl-10" value={form.name} onChange={(e) => update("name", e.target.value)} placeholder="Your name" required /></div></label>
+                <label className="block space-y-2 text-sm text-slate-300"><span>Email</span><div className="relative"><Mail className="absolute left-3.5 top-3.5 text-slate-600" size={17} /><Input className="h-12 rounded-xl border-white/10 bg-white/[0.035] pl-10" value={form.email} onChange={(e) => update("email", e.target.value)} type="email" placeholder="you@example.com" required /></div></label>
+                <label className="block space-y-2 text-sm text-slate-300"><span>Password</span><div className="relative"><LockKeyhole className="absolute left-3.5 top-3.5 text-slate-600" size={17} /><Input className="h-12 rounded-xl border-white/10 bg-white/[0.035] pl-10" value={form.password} onChange={(e) => update("password", e.target.value)} type="password" placeholder="At least 8 characters" minLength={8} required /></div></label>
+                <AnimatePresence>{error ? <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border border-red-400/15 bg-red-500/[0.07] px-4 py-3 text-sm text-red-300">{error}</motion.div> : null}</AnimatePresence>
+                <Button className="mt-2 h-12 w-full rounded-xl" size="lg" disabled={loading}>{loading ? "Creating your workspace..." : <>Create workspace <ArrowRight size={16} /></>}</Button>
+              </form>
+              <p className="mt-6 text-center text-sm text-slate-500">Already registered? <Link href="/login" className="font-medium text-violet-300 transition hover:text-white">Sign in</Link></p>
+            </motion.div>
           </section>
         </div>
       </div>
