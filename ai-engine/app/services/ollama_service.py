@@ -53,3 +53,41 @@ class OllamaService:
             "response",
             ""
         )
+
+    async def generate_json(
+        self,
+        prompt: str
+    ) -> str:
+
+        payload = {
+            "model": self.model,
+            "prompt": prompt,
+            "stream": False,
+            "format": "json"
+        }
+
+        try:
+
+            async with httpx.AsyncClient(
+                timeout=120.0
+            ) as client:
+
+                response = await client.post(
+                    f"{self.base_url}/api/generate",
+                    json=payload
+                )
+
+                response.raise_for_status()
+
+        except httpx.HTTPError as exc:
+
+            raise RuntimeError(
+                f"Ollama JSON request failed: {exc}"
+            ) from exc
+
+        data = response.json()
+
+        return data.get(
+            "response",
+            ""
+        )

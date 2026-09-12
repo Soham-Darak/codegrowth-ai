@@ -3,12 +3,12 @@ import os
 
 from fastapi import FastAPI, HTTPException, Request
 
-from app.agents.code_analysis_agent import CodeAnalysisAgent
-from app.agents.orchestrator_agent import OrchestratorAgent
 from app.agents.agent_models import (
     AgentRequest,
     AgentResponse
 )
+from app.agents.code_analysis_agent import CodeAnalysisAgent
+from app.agents.orchestrator_agent import OrchestratorAgent
 from app.services.ollama_service import OllamaService
 
 
