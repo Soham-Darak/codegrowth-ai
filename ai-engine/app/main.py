@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException, Request
 
 app = FastAPI(title="CodeGrowth AI Engine", version="0.1.0")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:3b")
 
 
 @app.get("/health")
