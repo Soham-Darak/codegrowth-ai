@@ -7,21 +7,36 @@ from app.agents.agent_models import (
     AgentRequest,
     AgentResponse
 )
-from app.agents.code_analysis_agent import CodeAnalysisAgent
-from app.agents.evaluation_agent import EvaluationAgent
-from app.agents.orchestrator_agent import OrchestratorAgent
-from app.services.ollama_service import OllamaService
-
-
-app = FastAPI(
-    title="CodeGrowth AI Engine",
-    version="0.3.0"
+from app.agents.code_analysis_agent import (
+    CodeAnalysisAgent
+)
+from app.agents.evaluation_agent import (
+    EvaluationAgent
+)
+from app.agents.orchestrator_agent import (
+    OrchestratorAgent
+)
+from app.services.evidence_validator import (
+    EvidenceValidator
+)
+from app.services.ollama_service import (
+    OllamaService
 )
 
 
-# --------------------------------------------------
-# Configuration
-# --------------------------------------------------
+# ==================================================
+# APPLICATION
+# ==================================================
+
+app = FastAPI(
+    title="CodeGrowth AI Engine",
+    version="0.4.0"
+)
+
+
+# ==================================================
+# CONFIGURATION
+# ==================================================
 
 OLLAMA_BASE_URL = os.getenv(
     "OLLAMA_BASE_URL",
@@ -34,16 +49,18 @@ OLLAMA_MODEL = os.getenv(
 )
 
 
-# --------------------------------------------------
-# Services
-# --------------------------------------------------
+# ==================================================
+# SERVICES
+# ==================================================
 
 ollama_service = OllamaService()
 
+evidence_validator = EvidenceValidator()
 
-# --------------------------------------------------
-# Agents
-# --------------------------------------------------
+
+# ==================================================
+# AGENTS
+# ==================================================
 
 code_analysis_agent = CodeAnalysisAgent(
     ollama_service
@@ -51,13 +68,14 @@ code_analysis_agent = CodeAnalysisAgent(
 
 evaluation_agent = EvaluationAgent(
     code_analysis_agent,
-    ollama_service
+    ollama_service,
+    evidence_validator
 )
 
 
-# --------------------------------------------------
-# Orchestrator
-# --------------------------------------------------
+# ==================================================
+# ORCHESTRATOR
+# ==================================================
 
 orchestrator = OrchestratorAgent(
     agents=[
@@ -67,9 +85,9 @@ orchestrator = OrchestratorAgent(
 )
 
 
-# --------------------------------------------------
-# Health endpoint
-# --------------------------------------------------
+# ==================================================
+# HEALTH
+# ==================================================
 
 @app.get("/health")
 async def health():
@@ -81,9 +99,9 @@ async def health():
     }
 
 
-# --------------------------------------------------
-# Direct Ollama generation
-# --------------------------------------------------
+# ==================================================
+# DIRECT OLLAMA GENERATION
+# ==================================================
 
 @app.post("/generate")
 async def generate(
@@ -129,10 +147,10 @@ async def generate(
         else None
     )
 
-    if not isinstance(
-        prompt,
-        str
-    ) or not prompt.strip():
+    if (
+        not isinstance(prompt, str)
+        or not prompt.strip()
+    ):
 
         raise HTTPException(
             status_code=422,
@@ -144,8 +162,10 @@ async def generate(
 
     try:
 
-        response = await ollama_service.generate(
-            prompt
+        response = await (
+            ollama_service.generate(
+                prompt
+            )
         )
 
     except RuntimeError as exc:
@@ -161,9 +181,9 @@ async def generate(
     }
 
 
-# --------------------------------------------------
-# List available agents
-# --------------------------------------------------
+# ==================================================
+# LIST AGENTS
+# ==================================================
 
 @app.get("/agents")
 async def list_agents():
@@ -173,9 +193,9 @@ async def list_agents():
     }
 
 
-# --------------------------------------------------
-# Execute agent through orchestrator
-# --------------------------------------------------
+# ==================================================
+# RUN AGENT
+# ==================================================
 
 @app.post(
     "/agents/run",
