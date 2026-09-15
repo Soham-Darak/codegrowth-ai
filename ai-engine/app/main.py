@@ -8,15 +8,20 @@ from app.agents.agent_models import (
     AgentResponse
 )
 from app.agents.code_analysis_agent import CodeAnalysisAgent
+from app.agents.evaluation_agent import EvaluationAgent
 from app.agents.orchestrator_agent import OrchestratorAgent
 from app.services.ollama_service import OllamaService
 
 
 app = FastAPI(
     title="CodeGrowth AI Engine",
-    version="0.2.0"
+    version="0.3.0"
 )
 
+
+# --------------------------------------------------
+# Configuration
+# --------------------------------------------------
 
 OLLAMA_BASE_URL = os.getenv(
     "OLLAMA_BASE_URL",
@@ -44,16 +49,26 @@ code_analysis_agent = CodeAnalysisAgent(
     ollama_service
 )
 
+evaluation_agent = EvaluationAgent(
+    code_analysis_agent,
+    ollama_service
+)
+
+
+# --------------------------------------------------
+# Orchestrator
+# --------------------------------------------------
 
 orchestrator = OrchestratorAgent(
     agents=[
-        code_analysis_agent
+        code_analysis_agent,
+        evaluation_agent
     ]
 )
 
 
 # --------------------------------------------------
-# Health
+# Health endpoint
 # --------------------------------------------------
 
 @app.get("/health")
@@ -67,11 +82,13 @@ async def health():
 
 
 # --------------------------------------------------
-# Existing direct Ollama endpoint
+# Direct Ollama generation
 # --------------------------------------------------
 
 @app.post("/generate")
-async def generate(request: Request):
+async def generate(
+    request: Request
+):
 
     raw_body = await request.body()
 
@@ -81,14 +98,12 @@ async def generate(request: Request):
             status_code=400,
             detail={
                 "message": "Request body is empty",
-                "content_length":
-                    request.headers.get(
-                        "content-length"
-                    ),
-                "content_type":
-                    request.headers.get(
-                        "content-type"
-                    )
+                "content_length": request.headers.get(
+                    "content-length"
+                ),
+                "content_type": request.headers.get(
+                    "content-type"
+                )
             }
         )
 
@@ -114,16 +129,16 @@ async def generate(request: Request):
         else None
     )
 
-    if (
-        not isinstance(prompt, str)
-        or not prompt.strip()
-    ):
+    if not isinstance(
+        prompt,
+        str
+    ) or not prompt.strip():
 
         raise HTTPException(
             status_code=422,
             detail=(
-                "Field 'prompt' must be "
-                "a non-empty string"
+                "Field 'prompt' must be a "
+                "non-empty string"
             )
         )
 
@@ -147,11 +162,11 @@ async def generate(request: Request):
 
 
 # --------------------------------------------------
-# Agent information
+# List available agents
 # --------------------------------------------------
 
 @app.get("/agents")
-async def get_agents():
+async def list_agents():
 
     return {
         "agents": orchestrator.list_agents()
@@ -159,7 +174,7 @@ async def get_agents():
 
 
 # --------------------------------------------------
-# Run orchestrator
+# Execute agent through orchestrator
 # --------------------------------------------------
 
 @app.post(

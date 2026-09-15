@@ -17,6 +17,10 @@ class OllamaService:
             "qwen2.5-coder:3b"
         )
 
+    # --------------------------------------------------
+    # Normal text generation
+    # --------------------------------------------------
+
     async def generate(
         self,
         prompt: str
@@ -53,6 +57,10 @@ class OllamaService:
             "response",
             ""
         )
+
+    # --------------------------------------------------
+    # JSON generation
+    # --------------------------------------------------
 
     async def generate_json(
         self,

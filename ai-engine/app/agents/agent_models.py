@@ -2,8 +2,6 @@ from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 
-from app.models.code_analysis_models import CodeAnalysisResult
-
 
 class AgentRequest(BaseModel):
 
@@ -25,4 +23,4 @@ class AgentResponse(BaseModel):
 
     status: str
 
-    result: CodeAnalysisResult
+    result: Any

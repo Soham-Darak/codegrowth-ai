@@ -37,7 +37,46 @@ class OrchestratorAgent:
         task_lower = task.lower()
 
         # --------------------------------------------------
-        # Rule 1: Code context has highest priority
+        # Rule 1: Explicit evaluation context
+        # --------------------------------------------------
+
+        if context.get("assignment"):
+
+            agent = self.agents.get(
+                "evaluation-agent"
+            )
+
+            if agent:
+                return agent
+
+        # --------------------------------------------------
+        # Rule 2: Explicit evaluation task
+        # --------------------------------------------------
+
+        evaluation_keywords = [
+            "assignment evaluation",
+            "evaluate submission",
+            "evaluate assignment",
+            "grade submission",
+            "grade assignment",
+            "assess submission",
+            "assess assignment"
+        ]
+
+        if any(
+            keyword in task_lower
+            for keyword in evaluation_keywords
+        ):
+
+            agent = self.agents.get(
+                "evaluation-agent"
+            )
+
+            if agent:
+                return agent
+
+        # --------------------------------------------------
+        # Rule 3: Code context
         # --------------------------------------------------
 
         if context.get("code"):
@@ -50,7 +89,7 @@ class OrchestratorAgent:
                 return agent
 
         # --------------------------------------------------
-        # Rule 2: Code-related task keywords
+        # Rule 4: Code-related task
         # --------------------------------------------------
 
         code_keywords = [
@@ -72,12 +111,9 @@ class OrchestratorAgent:
             "security",
             "testing",
             "documentation",
-            "evaluate",
-            "evaluation",
             "analyze",
             "analysis",
-            "review",
-            "assignment"
+            "review"
         ]
 
         if any(

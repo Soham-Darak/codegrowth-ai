@@ -13,7 +13,7 @@ class BaseAgent(ABC):
         self,
         task: str,
         context: Dict[str, Any] | None = None
-    ) -> str:
+    ) -> Any:
         """
         Execute the agent's task.
         """

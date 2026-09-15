@@ -31,12 +31,20 @@ class CodeAnalysisAgent(BaseAgent):
 
         context = context or {}
 
-        code = context.get("code", "")
+        code = context.get(
+            "code",
+            ""
+        )
 
         if not isinstance(code, str) or not code.strip():
+
             raise ValueError(
                 "Code is required for code analysis"
             )
+
+        # --------------------------------------------------
+        # Build analysis prompt
+        # --------------------------------------------------
 
         prompt_parts = [
             "You are the CodeGrowth AI Code Analysis Agent.",
@@ -78,7 +86,7 @@ class CodeAnalysisAgent(BaseAgent):
             "Important instructions:",
             "- Return ONLY valid JSON.",
             "- Do not return Markdown.",
-            "- Do not use a json code block.",
+            "- Do not use a JSON code block.",
             "- Do not include explanations outside the JSON.",
             "- All scores must be numbers between 0 and 100.",
             "- Strengths must be an array of strings.",
@@ -99,26 +107,48 @@ class CodeAnalysisAgent(BaseAgent):
             "improvement_suggestions"
         ]
 
-        prompt = "\n".join(prompt_parts)
+        prompt = "\n".join(
+            prompt_parts
+        )
+
+        # --------------------------------------------------
+        # Generate structured result
+        # --------------------------------------------------
 
         raw_result = await self.ollama_service.generate_json(
             prompt
         )
 
+        # --------------------------------------------------
+        # Parse JSON
+        # --------------------------------------------------
+
         try:
-            parsed_result = json.loads(raw_result)
+
+            parsed_result = json.loads(
+                raw_result
+            )
 
         except json.JSONDecodeError as exc:
+
             raise RuntimeError(
                 "AI returned invalid JSON"
             ) from exc
 
+        # --------------------------------------------------
+        # Validate result
+        # --------------------------------------------------
+
         try:
-            validated_result = CodeAnalysisResult.model_validate(
-                parsed_result
+
+            validated_result = (
+                CodeAnalysisResult.model_validate(
+                    parsed_result
+                )
             )
 
         except ValidationError as exc:
+
             raise RuntimeError(
                 f"AI analysis failed validation: {exc}"
             ) from exc
