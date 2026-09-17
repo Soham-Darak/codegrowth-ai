@@ -2,29 +2,38 @@ import os
 
 import httpx
 
+from app.services.llm_provider import LLMProvider
 
-class OllamaService:
+
+class OllamaService(LLMProvider):
 
     def __init__(self):
-
         self.base_url = os.getenv(
             "OLLAMA_BASE_URL",
             "http://localhost:11434"
-        )
+        ).rstrip("/")
 
         self.model = os.getenv(
             "OLLAMA_MODEL",
             "qwen2.5-coder:3b"
         )
 
-    # --------------------------------------------------
-    # Normal text generation
-    # --------------------------------------------------
+        self.timeout = float(
+            os.getenv(
+                "OLLAMA_TIMEOUT",
+                "120"
+            )
+        )
 
     async def generate(
         self,
         prompt: str
     ) -> str:
+
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise ValueError(
+                "Prompt must be a non-empty string"
+            )
 
         payload = {
             "model": self.model,
@@ -35,7 +44,7 @@ class OllamaService:
         try:
 
             async with httpx.AsyncClient(
-                timeout=120.0
+                timeout=self.timeout
             ) as client:
 
                 response = await client.post(
@@ -53,19 +62,27 @@ class OllamaService:
 
         data = response.json()
 
-        return data.get(
+        result = data.get(
             "response",
             ""
         )
 
-    # --------------------------------------------------
-    # JSON generation
-    # --------------------------------------------------
+        if not isinstance(result, str):
+            raise RuntimeError(
+                "Ollama returned an invalid response"
+            )
+
+        return result
 
     async def generate_json(
         self,
         prompt: str
     ) -> str:
+
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise ValueError(
+                "Prompt must be a non-empty string"
+            )
 
         payload = {
             "model": self.model,
@@ -77,7 +94,7 @@ class OllamaService:
         try:
 
             async with httpx.AsyncClient(
-                timeout=120.0
+                timeout=self.timeout
             ) as client:
 
                 response = await client.post(
@@ -95,7 +112,14 @@ class OllamaService:
 
         data = response.json()
 
-        return data.get(
+        result = data.get(
             "response",
             ""
         )
+
+        if not isinstance(result, str):
+            raise RuntimeError(
+                "Ollama returned an invalid JSON response"
+            )
+
+        return result

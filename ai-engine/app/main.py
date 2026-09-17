@@ -19,8 +19,14 @@ from app.agents.orchestrator_agent import (
 from app.services.evidence_validator import (
     EvidenceValidator
 )
+from app.services.llm_provider import (
+    LLMProvider
+)
 from app.services.ollama_service import (
     OllamaService
+)
+from app.services.llm_runtime import (
+    LLMRuntime
 )
 
 
@@ -30,18 +36,13 @@ from app.services.ollama_service import (
 
 app = FastAPI(
     title="CodeGrowth AI Engine",
-    version="0.4.0"
+    version="0.5.0"
 )
 
 
 # ==================================================
 # CONFIGURATION
 # ==================================================
-
-OLLAMA_BASE_URL = os.getenv(
-    "OLLAMA_BASE_URL",
-    "http://localhost:11434"
-)
 
 OLLAMA_MODEL = os.getenv(
     "OLLAMA_MODEL",
@@ -53,23 +54,36 @@ OLLAMA_MODEL = os.getenv(
 # SERVICES
 # ==================================================
 
-ollama_service = OllamaService()
+llm_provider: LLMProvider = (
+    OllamaService()
+)
 
-evidence_validator = EvidenceValidator()
+llm_runtime = LLMRuntime(
+    provider=llm_provider,
+    max_retries=2
+)
+
+evidence_validator = (
+    EvidenceValidator()
+)
 
 
 # ==================================================
 # AGENTS
 # ==================================================
 
-code_analysis_agent = CodeAnalysisAgent(
-    ollama_service
+code_analysis_agent = (
+    CodeAnalysisAgent(
+        llm_runtime
+    )
 )
 
-evaluation_agent = EvaluationAgent(
-    code_analysis_agent,
-    ollama_service,
-    evidence_validator
+evaluation_agent = (
+    EvaluationAgent(
+        code_analysis_agent,
+        llm_runtime,
+        evidence_validator
+    )
 )
 
 
@@ -100,7 +114,7 @@ async def health():
 
 
 # ==================================================
-# DIRECT OLLAMA GENERATION
+# DIRECT LLM GENERATION
 # ==================================================
 
 @app.post("/generate")
@@ -162,11 +176,14 @@ async def generate(
 
     try:
 
-        response = await (
-            ollama_service.generate(
-                prompt
-            )
-        )
+        response = await llm_runtime.generate(prompt)
+
+    except ValueError as exc:
+
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc)
+        ) from exc
 
     except RuntimeError as exc:
 

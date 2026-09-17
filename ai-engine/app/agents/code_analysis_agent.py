@@ -5,8 +5,7 @@ from pydantic import ValidationError
 
 from app.agents.base_agent import BaseAgent
 from app.models.code_analysis_models import CodeAnalysisResult
-from app.services.ollama_service import OllamaService
-
+from app.services.llm_runtime import LLMRuntime
 
 class CodeAnalysisAgent(BaseAgent):
 
@@ -19,9 +18,9 @@ class CodeAnalysisAgent(BaseAgent):
 
     def __init__(
         self,
-        ollama_service: OllamaService
+        llm_runtime: LLMRuntime
     ):
-        self.ollama_service = ollama_service
+        self.llm_runtime = llm_runtime
 
     async def run(
         self,
@@ -42,9 +41,9 @@ class CodeAnalysisAgent(BaseAgent):
                 "Code is required for code analysis"
             )
 
-        # --------------------------------------------------
-        # Build analysis prompt
-        # --------------------------------------------------
+        # ==================================================
+        # BUILD ANALYSIS PROMPT
+        # ==================================================
 
         prompt_parts = [
             "You are the CodeGrowth AI Code Analysis Agent.",
@@ -111,17 +110,17 @@ class CodeAnalysisAgent(BaseAgent):
             prompt_parts
         )
 
-        # --------------------------------------------------
-        # Generate structured result
-        # --------------------------------------------------
+        # ==================================================
+        # GENERATE STRUCTURED RESULT
+        # ==================================================
 
-        raw_result = await self.ollama_service.generate_json(
+        raw_result = await self.llm_runtime.generate_json(
             prompt
         )
 
-        # --------------------------------------------------
-        # Parse JSON
-        # --------------------------------------------------
+        # ==================================================
+        # PARSE JSON
+        # ==================================================
 
         try:
 
@@ -135,9 +134,9 @@ class CodeAnalysisAgent(BaseAgent):
                 "AI returned invalid JSON"
             ) from exc
 
-        # --------------------------------------------------
-        # Validate result
-        # --------------------------------------------------
+        # ==================================================
+        # VALIDATE RESULT
+        # ==================================================
 
         try:
 

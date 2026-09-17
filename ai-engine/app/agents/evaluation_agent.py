@@ -7,7 +7,7 @@ from app.agents.base_agent import BaseAgent
 from app.agents.code_analysis_agent import CodeAnalysisAgent
 from app.models.evaluation_models import EvaluationResult
 from app.services.evidence_validator import EvidenceValidator
-from app.services.ollama_service import OllamaService
+from app.services.llm_runtime import LLMRuntime
 
 
 class EvaluationAgent(BaseAgent):
@@ -23,11 +23,11 @@ class EvaluationAgent(BaseAgent):
     def __init__(
         self,
         code_analysis_agent: CodeAnalysisAgent,
-        ollama_service: OllamaService,
+        llm_runtime: LLMRuntime,
         evidence_validator: EvidenceValidator
     ):
         self.code_analysis_agent = code_analysis_agent
-        self.ollama_service = ollama_service
+        self.llm_runtime = llm_runtime
         self.evidence_validator = evidence_validator
 
     async def run(
@@ -62,6 +62,7 @@ class EvaluationAgent(BaseAgent):
         title = assignment.get("title", "")
         description = assignment.get("description", "")
         requirements = assignment.get("requirements", [])
+
         expected_concepts = assignment.get(
             "expected_concepts",
             []
@@ -592,6 +593,41 @@ class EvaluationAgent(BaseAgent):
 
             "",
 
+            (
+                "Every requirement_result MUST contain "
+                "these fields:"
+            ),
+
+            "- requirement",
+            "- status",
+            "- score",
+            "- evidence",
+            "- feedback",
+
+            "",
+
+            (
+                "The score field is mandatory and must "
+                "be a number from 0 to 100."
+            ),
+
+            (
+                "The status field is mandatory and must be "
+                "SATISFIED, PARTIALLY_SATISFIED, or "
+                "NOT_SATISFIED."
+            ),
+
+            (
+                "The evidence field must be an array of "
+                "strings."
+            ),
+
+            (
+                "The feedback field must be a string."
+            ),
+
+            "",
+
             "Provide:",
 
             "- Overall score",
@@ -656,11 +692,11 @@ class EvaluationAgent(BaseAgent):
 
         # ==================================================
         # STEP 4
-        # CALL OLLAMA
+        # CALL LLM
         # ==================================================
 
         raw_result = (
-            await self.ollama_service.generate_json(
+            await self.llm_runtime.generate_json(
                 prompt
             )
         )
@@ -682,8 +718,35 @@ class EvaluationAgent(BaseAgent):
                 "AI returned invalid evaluation JSON"
             ) from exc
 
+        if not isinstance(parsed_result, dict):
+
+            raise RuntimeError(
+                "AI evaluation response must be a JSON object"
+            )
+
         # ==================================================
         # STEP 6
+        # NORMALIZE RAW REQUIREMENT RESULTS
+        #
+        # IMPORTANT:
+        # This happens BEFORE Pydantic validation.
+        #
+        # The LLM may return evidence-shaped objects
+        # without score/status. Deterministic evidence
+        # supplies authoritative values for detectable
+        # requirements.
+        # ==================================================
+
+        parsed_result = (
+            self._normalize_raw_evaluation_result(
+                parsed_result,
+                requirements,
+                evidence_validation
+            )
+        )
+
+        # ==================================================
+        # STEP 7
         # PYDANTIC VALIDATION
         # ==================================================
 
@@ -702,7 +765,7 @@ class EvaluationAgent(BaseAgent):
             ) from exc
 
         # ==================================================
-        # STEP 7
+        # STEP 8
         # REQUIREMENT COUNT VALIDATION
         # ==================================================
 
@@ -724,7 +787,7 @@ class EvaluationAgent(BaseAgent):
             )
 
         # ==================================================
-        # STEP 8
+        # STEP 9
         # DETERMINISTIC NORMALIZATION
         # ==================================================
 
@@ -736,7 +799,7 @@ class EvaluationAgent(BaseAgent):
         )
 
         # ==================================================
-        # STEP 9
+        # STEP 10
         # FINAL CONSISTENCY VALIDATION
         # ==================================================
 
@@ -745,6 +808,240 @@ class EvaluationAgent(BaseAgent):
         )
 
         return normalized_result
+
+    # ==================================================
+    # RAW LLM OUTPUT NORMALIZATION
+    # ==================================================
+
+    def _normalize_raw_evaluation_result(
+        self,
+        parsed_result: dict[str, Any],
+        requirements: list[str],
+        evidence_validation
+    ) -> dict[str, Any]:
+
+        raw_requirement_results = (
+            parsed_result.get(
+                "requirement_results",
+                []
+            )
+        )
+
+        if not isinstance(
+            raw_requirement_results,
+            list
+        ):
+
+            raise RuntimeError(
+                "AI evaluation requirement_results "
+                "must be an array"
+            )
+
+        evidence_by_requirement = {
+            item.requirement.strip().lower(): item
+            for item in evidence_validation.items
+        }
+
+        raw_by_requirement: dict[str, dict[str, Any]] = {}
+
+        for raw_item in raw_requirement_results:
+
+            if not isinstance(
+                raw_item,
+                dict
+            ):
+                continue
+
+            raw_requirement = raw_item.get(
+                "requirement"
+            )
+
+            if not isinstance(
+                raw_requirement,
+                str
+            ):
+                continue
+
+            key = raw_requirement.strip().lower()
+
+            if key:
+                raw_by_requirement[key] = raw_item
+
+        normalized_requirement_results = []
+
+        for requirement in requirements:
+
+            key = requirement.strip().lower()
+
+            raw_item = raw_by_requirement.get(
+                key,
+                {}
+            )
+
+            evidence_item = evidence_by_requirement.get(
+                key
+            )
+
+            normalized_item = dict(
+                raw_item
+            )
+
+            normalized_item["requirement"] = (
+                requirement
+            )
+
+            # --------------------------------------------------
+            # DETERMINISTIC EVIDENCE IS AUTHORITATIVE
+            # --------------------------------------------------
+
+            if (
+                evidence_item is not None
+                and evidence_item.type != "UNKNOWN"
+            ):
+
+                normalized_item["evidence"] = (
+                    evidence_item.evidence
+                )
+
+                if evidence_item.found:
+
+                    # If the LLM supplied a valid status/score,
+                    # preserve it so the LLM can still distinguish
+                    # implementation presence from implementation
+                    # quality.
+                    status = normalized_item.get(
+                        "status"
+                    )
+
+                    score = normalized_item.get(
+                        "score"
+                    )
+
+                    if (
+                        not isinstance(status, str)
+                        or not status.strip()
+                    ):
+
+                        normalized_item["status"] = (
+                            "SATISFIED"
+                        )
+
+                    if not isinstance(
+                        score,
+                        (int, float)
+                    ):
+
+                        normalized_item["score"] = 100
+
+                else:
+
+                    # Deterministic NOT FOUND always overrides
+                    # the LLM's requirement conclusion.
+                    normalized_item["status"] = (
+                        "NOT_SATISFIED"
+                    )
+
+                    normalized_item["score"] = 0
+
+                    normalized_item["evidence"] = []
+
+                    normalized_item["feedback"] = (
+                        evidence_item.details
+                    )
+
+            else:
+
+                # --------------------------------------------------
+                # UNKNOWN REQUIREMENT
+                # --------------------------------------------------
+                #
+                # For requirements without deterministic support,
+                # rely on the LLM, but require a complete result.
+                #
+
+                if "status" not in normalized_item:
+                    raise RuntimeError(
+                        "AI evaluation did not provide a status "
+                        f"for requirement: {requirement}"
+                    )
+
+                if "score" not in normalized_item:
+                    raise RuntimeError(
+                        "AI evaluation did not provide a score "
+                        f"for requirement: {requirement}"
+                    )
+
+                if "evidence" not in normalized_item:
+                    normalized_item["evidence"] = []
+
+                if "feedback" not in normalized_item:
+                    normalized_item["feedback"] = ""
+
+            # --------------------------------------------------
+            # NORMALIZE BASIC TYPES
+            # --------------------------------------------------
+
+            evidence = normalized_item.get(
+                "evidence",
+                []
+            )
+
+            if evidence is None:
+
+                normalized_item["evidence"] = []
+
+            elif isinstance(
+                evidence,
+                str
+            ):
+
+                normalized_item["evidence"] = [
+                    evidence
+                ]
+
+            elif isinstance(
+                evidence,
+                list
+            ):
+
+                normalized_item["evidence"] = [
+                    str(item)
+                    for item in evidence
+                    if item is not None
+                ]
+
+            else:
+
+                normalized_item["evidence"] = [
+                    str(evidence)
+                ]
+
+            feedback = normalized_item.get(
+                "feedback",
+                ""
+            )
+
+            if feedback is None:
+                normalized_item["feedback"] = ""
+
+            elif not isinstance(
+                feedback,
+                str
+            ):
+
+                normalized_item["feedback"] = (
+                    str(feedback)
+                )
+
+            normalized_requirement_results.append(
+                normalized_item
+            )
+
+        parsed_result[
+            "requirement_results"
+        ] = normalized_requirement_results
+
+        return parsed_result
 
     # ==================================================
     # DETERMINISTIC NORMALIZATION
