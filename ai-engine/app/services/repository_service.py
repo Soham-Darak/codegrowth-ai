@@ -305,7 +305,14 @@ class RepositoryService:
     ) -> tuple[
         List[RepositoryFile],
         int,
+        int,
     ]:
+        """
+        Returns (selected_files, skipped_count, total_blob_count).
+
+        total_blob_count is the actual number of blob entries
+        in the GitHub tree, regardless of filtering.
+        """
 
         limit = (
             max_files
@@ -318,11 +325,14 @@ class RepositoryService:
         ] = []
 
         skipped = 0
+        total_blobs = 0
 
         for item in tree:
 
             if item.get("type") != "blob":
                 continue
+
+            total_blobs += 1
 
             path = item.get(
                 "path",
@@ -330,6 +340,7 @@ class RepositoryService:
             )
 
             if not path:
+                skipped += 1
                 continue
 
             if not self._is_supported_file(
@@ -367,7 +378,7 @@ class RepositoryService:
                 )
             )
 
-        return files, skipped
+        return files, skipped, total_blobs
 
     # ==========================================================
     # METADATA
@@ -558,7 +569,7 @@ class RepositoryService:
             )
         )
 
-        files, skipped_files = (
+        files, skipped_files, total_blobs = (
             self._build_file_list(
                 tree=tree,
                 max_files=max_files,
@@ -594,7 +605,7 @@ class RepositoryService:
         )
 
         statistics = RepositoryStatistics(
-            total_files=len(files),
+            total_files=total_blobs,
             analyzed_files=len(contents),
             skipped_files=total_skipped,
             total_source_files=len(files),

@@ -459,15 +459,27 @@ class CodeAnalysisService:
     # HELPERS
     # ========================================================
 
+    _SECRET_VALUE_PATTERN = re.compile(
+        r"""(['"])[^\1]{4,}?\1"""
+    )
+
     def _safe_evidence(
         self,
         line: str
     ) -> str:
 
-        if len(line) > 300:
-            return line[:297] + "..."
+        sanitized = line.strip()
 
-        return line
+        # Mask quoted string values that likely contain secrets
+        sanitized = self._SECRET_VALUE_PATTERN.sub(
+            '"****"',
+            sanitized,
+        )
+
+        if len(sanitized) > 300:
+            return sanitized[:297] + "..."
+
+        return sanitized
 
     def _build_summary(
         self,
