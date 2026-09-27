@@ -8,9 +8,13 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+import java.time.Instant;
 
 @Entity
-@Table(name = "app_users")
+@Table(name = "app_users", uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"provider", "provider_id"})
+})
 public class AppUser {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -22,7 +26,7 @@ public class AppUser {
     @Column(nullable = false, unique = true, length = 150)
     private String email;
 
-    @Column(nullable = false, length = 100)
+    @Column(length = 100)
     private String password;
 
     @Enumerated(EnumType.STRING)
@@ -31,6 +35,21 @@ public class AppUser {
 
     @Column(nullable = false)
     private boolean enabled = true;
+
+    @Column(length = 20)
+    private String provider;
+
+    @Column(name = "provider_id", length = 200)
+    private String providerId;
+
+    @Column(length = 500)
+    private String avatarUrl;
+
+    @Column(nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @Column(nullable = false)
+    private Instant updatedAt;
 
     protected AppUser() {
     }
@@ -45,37 +64,38 @@ public class AppUser {
         this.password = password;
         this.role = role == null ? Role.STUDENT : role;
         this.enabled = true;
+        this.createdAt = Instant.now();
+        this.updatedAt = Instant.now();
     }
 
-    public Long getId() {
-        return id;
+    /** OAuth constructor — no password required. */
+    public AppUser(String name, String email, String provider, String providerId, String avatarUrl) {
+        this.name = name;
+        this.email = email;
+        this.provider = provider;
+        this.providerId = providerId;
+        this.avatarUrl = avatarUrl;
+        this.role = Role.STUDENT;
+        this.enabled = true;
+        this.createdAt = Instant.now();
+        this.updatedAt = Instant.now();
     }
 
-    public String getName() {
-        return name;
-    }
+    public Long getId() { return id; }
+    public String getName() { return name; }
+    public String getEmail() { return email; }
+    public String getPassword() { return password; }
+    public Role getRole() { return role == null ? Role.STUDENT : role; }
+    public boolean isEnabled() { return enabled; }
+    public String getProvider() { return provider; }
+    public String getProviderId() { return providerId; }
+    public String getAvatarUrl() { return avatarUrl; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
 
-    public String getEmail() {
-        return email;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public Role getRole() {
-        return role == null ? Role.STUDENT : role;
-    }
-
-    public boolean isEnabled() {
-        return enabled;
-    }
-
-    public void setRole(Role role) {
-        this.role = role == null ? Role.STUDENT : role;
-    }
-
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-    }
+    public void setRole(Role role) { this.role = role == null ? Role.STUDENT : role; }
+    public void setEnabled(boolean enabled) { this.enabled = enabled; }
+    public void setName(String name) { this.name = name; this.updatedAt = Instant.now(); }
+    public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; this.updatedAt = Instant.now(); }
 }
+
