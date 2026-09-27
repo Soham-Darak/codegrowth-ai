@@ -1,81 +1,90 @@
 import json
 import os
+from typing import Any, Dict
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import (
+    FastAPI,
+    HTTPException,
+    Request,
+)
 
 from app.agents.agent_models import (
     AgentRequest,
-    AgentResponse
+    AgentResponse,
 )
 
 from app.agents.code_analysis_agent import (
-    CodeAnalysisAgent
+    CodeAnalysisAgent,
 )
 
 from app.agents.evaluation_agent import (
-    EvaluationAgent
+    EvaluationAgent,
 )
 
 from app.agents.orchestrator_agent import (
-    OrchestratorAgent
+    OrchestratorAgent,
 )
 
 from app.agents.repository_agent import (
-    RepositoryAgent
+    RepositoryAgent,
 )
 
 from app.models.repository_models import (
-    RepositoryRequest
+    RepositoryRequest,
+)
+
+from app.services.code_analysis_service import (
+    CodeAnalysisService,
 )
 
 from app.services.evidence_validator import (
-    EvidenceValidator
+    EvidenceValidator,
 )
 
 from app.services.github_service import (
-    GitHubService
+    GitHubService,
 )
 
 from app.services.llm_provider import (
-    LLMProvider
+    LLMProvider,
 )
 
 from app.services.llm_runtime import (
-    LLMRuntime
+    LLMRuntime,
 )
 
 from app.services.ollama_service import (
-    OllamaService
+    OllamaService,
 )
 
 from app.services.repository_service import (
-    RepositoryService
+    RepositoryService,
 )
 
 
-# ==================================================
+# ==========================================================
 # APPLICATION
-# ==================================================
+# ==========================================================
 
 app = FastAPI(
     title="CodeGrowth AI Engine",
-    version="0.6.0"
+    version="0.7.0",
 )
 
 
-# ==================================================
+# ==========================================================
 # CONFIGURATION
-# ==================================================
+# ==========================================================
 
 OLLAMA_MODEL = os.getenv(
     "OLLAMA_MODEL",
-    "qwen2.5-coder:3b"
+    "qwen2.5-coder:3b",
 )
 
 
-# ==================================================
-# LLM SERVICES
-# ==================================================
+# ==========================================================
+# LLM
+# ==========================================================
 
 llm_provider: LLMProvider = (
     OllamaService()
@@ -83,79 +92,75 @@ llm_provider: LLMProvider = (
 
 llm_runtime = LLMRuntime(
     provider=llm_provider,
-    max_retries=2
+    max_retries=2,
 )
 
 
-# ==================================================
-# EVIDENCE SERVICES
-# ==================================================
+# ==========================================================
+# SERVICES
+# ==========================================================
 
 evidence_validator = (
     EvidenceValidator()
 )
 
-
-# ==================================================
-# GITHUB SERVICES
-# ==================================================
-
-github_service = GitHubService()
-
-repository_service = RepositoryService(
-    github_service=github_service
+github_service = (
+    GitHubService()
 )
 
-
-# ==================================================
-# CODE ANALYSIS AGENT
-# ==================================================
-
-code_analysis_agent = (
-    CodeAnalysisAgent(
-        llm_runtime
+repository_service = (
+    RepositoryService(
+        github_service=github_service
     )
 )
 
+code_analysis_service = (
+    CodeAnalysisService()
+)
 
-# ==================================================
-# EVALUATION AGENT
-# ==================================================
+
+# ==========================================================
+# AGENTS
+# ==========================================================
+
+repository_agent = (
+    RepositoryAgent(
+        repository_service
+    )
+)
+
+code_analysis_agent = (
+    CodeAnalysisAgent(
+        llm_runtime,
+        code_analysis_service,
+    )
+)
 
 evaluation_agent = (
     EvaluationAgent(
         code_analysis_agent,
         llm_runtime,
-        evidence_validator
+        evidence_validator,
     )
 )
 
 
-# ==================================================
-# REPOSITORY AGENT
-# ==================================================
-
-repository_agent = RepositoryAgent(
-    repository_service
-)
-
-
-# ==================================================
+# ==========================================================
 # ORCHESTRATOR
-# ==================================================
+# ==========================================================
 
 orchestrator = OrchestratorAgent(
     agents=[
         repository_agent,
         code_analysis_agent,
-        evaluation_agent
+        evaluation_agent,
     ]
 )
 
 
-# ==================================================
+# ==========================================================
 # HEALTH
-# ==================================================
+# ==========================================================
 
 @app.get("/health")
 async def health():
@@ -163,17 +168,17 @@ async def health():
     return {
         "service": "codegrowth-ai-engine",
         "status": "UP",
-        "model": OLLAMA_MODEL
+        "model": OLLAMA_MODEL,
     }
 
 
-# ==================================================
+# ==========================================================
 # DIRECT LLM GENERATION
-# ==================================================
+# ==========================================================
 
 @app.post("/generate")
 async def generate(
-    request: Request
+    request: Request,
 ):
 
     raw_body = await request.body()
@@ -182,107 +187,163 @@ async def generate(
 
         raise HTTPException(
             status_code=400,
-            detail={
-                "message": "Request body is empty",
-                "content_length": request.headers.get(
-                    "content-length"
-                ),
-                "content_type": request.headers.get(
-                    "content-type"
-                )
-            }
+            detail="Request body is empty",
         )
 
     try:
 
         body = json.loads(
-            raw_body.decode("utf-8")
+            raw_body.decode(
+                "utf-8"
+            )
         )
 
     except (
         UnicodeDecodeError,
-        json.JSONDecodeError
+        json.JSONDecodeError,
     ) as exc:
 
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid JSON body: {exc}"
+            detail=f"Invalid JSON body: {exc}",
         ) from exc
 
-    prompt = (
-        body.get("prompt")
-        if isinstance(body, dict)
-        else None
+    if not isinstance(
+        body,
+        dict,
+    ):
+
+        raise HTTPException(
+            status_code=400,
+            detail="Request body must be a JSON object",
+        )
+
+    prompt = body.get(
+        "prompt"
     )
 
     if (
-        not isinstance(prompt, str)
+        not isinstance(
+            prompt,
+            str,
+        )
         or not prompt.strip()
     ):
 
         raise HTTPException(
             status_code=422,
             detail=(
-                "Field 'prompt' must be a "
-                "non-empty string"
-            )
+                "Field 'prompt' must be "
+                "a non-empty string"
+            ),
         )
 
     try:
 
-        response = await llm_runtime.generate(
-            prompt
+        response = (
+            await llm_runtime.generate(
+                prompt
+            )
         )
 
     except ValueError as exc:
 
         raise HTTPException(
             status_code=422,
-            detail=str(exc)
+            detail=str(exc),
         ) from exc
 
     except RuntimeError as exc:
 
         raise HTTPException(
             status_code=502,
-            detail=str(exc)
+            detail=str(exc),
         ) from exc
 
     return {
         "model": OLLAMA_MODEL,
-        "response": response
+        "response": response,
     }
 
 
-# ==================================================
+# ==========================================================
 # LIST AGENTS
-# ==================================================
+# ==========================================================
 
 @app.get("/agents")
 async def list_agents():
 
     return {
-        "agents": orchestrator.list_agents()
+        "agents": (
+            orchestrator.list_agents()
+        )
     }
 
 
-# ==================================================
+# ==========================================================
 # RUN AGENT
-# ==================================================
+# ==========================================================
 
 @app.post(
     "/agents/run",
-    response_model=AgentResponse
+    response_model=AgentResponse,
 )
 async def run_agent(
-    request: AgentRequest
+    request: AgentRequest,
 ):
 
     try:
 
+        context = (
+            request.context
+            or {}
+        )
+
+        task_lower = (
+            request.task.lower()
+        )
+
+        repository_keywords = [
+            "inspect repository",
+            "inspect repo",
+            "analyze repository",
+            "analyse repository",
+            "analyze repo",
+            "analyse repo",
+            "review repository",
+            "review repo",
+            "repository inspection",
+            "repository structure",
+        ]
+
+        is_repository_task = any(
+            keyword in task_lower
+            for keyword in repository_keywords
+        )
+
+        if (
+            context.get(
+                "repository_url"
+            )
+            and is_repository_task
+        ):
+
+            result = (
+                await repository_agent.run(
+                    task=request.task,
+                    context=context,
+                )
+            )
+
+            return {
+                "agent": "repository-agent",
+                "status": "COMPLETED",
+                "result": result,
+            }
+
         result = await orchestrator.run(
             request.task,
-            request.context
+            context,
         )
 
         return result
@@ -291,55 +352,260 @@ async def run_agent(
 
         raise HTTPException(
             status_code=400,
-            detail=str(exc)
+            detail=str(exc),
         ) from exc
 
     except RuntimeError as exc:
 
         raise HTTPException(
             status_code=502,
-            detail=str(exc)
+            detail=str(exc),
         ) from exc
 
 
-# ==================================================
-# DIRECT REPOSITORY INSPECTION
-# ==================================================
+# ==========================================================
+# INSPECT REPOSITORY
+# ==========================================================
 
-@app.post("/repositories/inspect")
+@app.post(
+    "/repositories/inspect"
+)
 async def inspect_repository(
-    request: RepositoryRequest
+    request: RepositoryRequest,
 ):
 
     try:
 
-        structure = (
+        repository = (
             await repository_service
             .inspect_repository(
-                repository_url=request.repository_url,
-                branch=request.branch
+                repository_url=(
+                    request.repository_url
+                ),
+                branch=request.branch,
+                include_contents=(
+                    request.include_contents
+                ),
+                max_files=request.max_files,
             )
         )
 
         return {
             "status": "COMPLETED",
-            "repository": structure.model_dump(),
+            "repository": (
+                repository.model_dump()
+            ),
             "message": (
                 "GitHub repository successfully "
                 "retrieved and inspected."
-            )
+            ),
         }
 
     except ValueError as exc:
 
         raise HTTPException(
             status_code=400,
-            detail=str(exc)
+            detail=str(exc),
         ) from exc
 
     except RuntimeError as exc:
 
         raise HTTPException(
             status_code=502,
-            detail=str(exc)
+            detail=str(exc),
+        ) from exc
+
+
+# ==========================================================
+# ANALYZE REPOSITORY
+# ==========================================================
+
+@app.post(
+    "/repositories/analyze"
+)
+async def analyze_repository(
+    request: RepositoryRequest,
+):
+
+    try:
+
+        repository = (
+            await repository_service
+            .inspect_repository(
+                repository_url=(
+                    request.repository_url
+                ),
+                branch=request.branch,
+                include_contents=True,
+                max_files=request.max_files,
+            )
+        )
+
+        repository_files = [
+            file.model_dump()
+            for file in repository.contents
+        ]
+
+        if not repository_files:
+
+            raise RuntimeError(
+                "No readable source files were retrieved "
+                "from the repository."
+            )
+
+        analysis_result = (
+            await code_analysis_agent.run(
+                task=(
+                    "Analyze the repository source code "
+                    "for correctness, quality, complexity, "
+                    "security, testing and documentation."
+                ),
+                context={
+                    "repository": (
+                        repository.model_dump()
+                    ),
+                    "repository_files": (
+                        repository_files
+                    ),
+                },
+            )
+        )
+
+        if hasattr(
+            analysis_result,
+            "model_dump",
+        ):
+
+            analysis_result = (
+                analysis_result.model_dump()
+            )
+
+        return {
+            "status": "COMPLETED",
+            "repository": (
+                repository.model_dump()
+            ),
+            "analysis": analysis_result,
+        }
+
+    except ValueError as exc:
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    except RuntimeError as exc:
+
+        raise HTTPException(
+            status_code=502,
+            detail=str(exc),
+        ) from exc
+
+
+# ==========================================================
+# DIRECT CODE ANALYSIS
+# ==========================================================
+
+@app.post(
+    "/code/analyze"
+)
+async def analyze_code(
+    request: Request,
+):
+
+    try:
+
+        body = await request.json()
+
+    except Exception as exc:
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Invalid JSON request body: {exc}"
+            ),
+        ) from exc
+
+    if not isinstance(
+        body,
+        dict,
+    ):
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Request body must be a JSON object"
+            ),
+        )
+
+    task = body.get(
+        "task",
+        "Analyze the provided source code",
+    )
+
+    context = body.get(
+        "context",
+        {},
+    )
+
+    if not isinstance(
+        context,
+        dict,
+    ):
+
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Field 'context' must be an object"
+            ),
+        )
+
+    context = dict(
+        context
+    )
+
+    if "code" in body:
+        context["code"] = body["code"]
+
+    if "language" in body:
+        context["language"] = (
+            body["language"]
+        )
+
+    if "file_path" in body:
+        context["file_path"] = (
+            body["file_path"]
+        )
+
+    try:
+
+        result = (
+            await code_analysis_agent.run(
+                task,
+                context,
+            )
+        )
+
+        if hasattr(
+            result,
+            "model_dump",
+        ):
+
+            return result.model_dump()
+
+        return result
+
+    except ValueError as exc:
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    except RuntimeError as exc:
+
+        raise HTTPException(
+            status_code=502,
+            detail=str(exc),
         ) from exc

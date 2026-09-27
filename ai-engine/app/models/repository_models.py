@@ -1,37 +1,80 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
 
-class RepositoryRequest(BaseModel):
+# ==========================================================
+# REPOSITORY REQUEST
+# ==========================================================
 
+class RepositoryRequest(BaseModel):
     repository_url: str = Field(
         ...,
         min_length=1,
-        description=(
-            "Public or authorized GitHub repository URL"
-        )
+        description="GitHub repository URL",
     )
 
     branch: Optional[str] = Field(
         default=None,
-        description="Optional Git branch or tag"
+        description="Git branch or tag. Uses the default branch when omitted.",
+    )
+
+    include_contents: bool = Field(
+        default=True,
+        description="Whether source file contents should be retrieved.",
+    )
+
+    max_files: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=500,
+        description="Maximum number of files to inspect.",
     )
 
 
-class RepositoryFile(BaseModel):
+# ==========================================================
+# REPOSITORY FILE METADATA
+# ==========================================================
 
+class RepositoryFile(BaseModel):
     path: str
 
-    size: int
+    size: int = Field(
+        default=0,
+        ge=0,
+    )
 
-    extension: str
+    extension: str = ""
 
     language: Optional[str] = None
 
 
-class RepositoryMetadata(BaseModel):
+# ==========================================================
+# REPOSITORY FILE CONTENT
+# ==========================================================
 
+class RepositoryFileContent(BaseModel):
+    path: str
+
+    size: int = Field(
+        default=0,
+        ge=0,
+    )
+
+    extension: str = ""
+
+    language: Optional[str] = None
+
+    content: str = ""
+
+    truncated: bool = False
+
+
+# ==========================================================
+# REPOSITORY METADATA
+# ==========================================================
+
+class RepositoryMetadata(BaseModel):
     owner: str
 
     name: str
@@ -40,26 +83,140 @@ class RepositoryMetadata(BaseModel):
 
     branch: Optional[str] = None
 
+    description: Optional[str] = None
 
-class RepositoryStructure(BaseModel):
+    default_branch: Optional[str] = None
 
-    metadata: RepositoryMetadata
+    private: bool = False
 
-    total_files: int = 0
+    fork: bool = False
 
-    analyzed_files: int = 0
+    stars: int = Field(
+        default=0,
+        ge=0,
+    )
 
-    skipped_files: int = 0
+    forks: int = Field(
+        default=0,
+        ge=0,
+    )
 
-    files: List[RepositoryFile] = Field(
-        default_factory=list
+    open_issues: int = Field(
+        default=0,
+        ge=0,
     )
 
 
-class RepositoryAnalysisResult(BaseModel):
+# ==========================================================
+# REPOSITORY STATISTICS
+# ==========================================================
 
+class RepositoryStatistics(BaseModel):
+    """
+    Aggregate statistics generated during repository inspection.
+    """
+
+    total_files: int = Field(
+        default=0,
+        ge=0,
+    )
+
+    analyzed_files: int = Field(
+        default=0,
+        ge=0,
+    )
+
+    skipped_files: int = Field(
+        default=0,
+        ge=0,
+    )
+
+    total_source_files: int = Field(
+        default=0,
+        ge=0,
+    )
+
+    total_source_bytes: int = Field(
+        default=0,
+        ge=0,
+    )
+
+    languages: Dict[str, int] = Field(
+        default_factory=dict,
+    )
+
+
+# ==========================================================
+# REPOSITORY STRUCTURE
+# ==========================================================
+
+class RepositoryStructure(BaseModel):
+    metadata: RepositoryMetadata
+
+    statistics: RepositoryStatistics = Field(
+        default_factory=RepositoryStatistics,
+    )
+
+    files: List[RepositoryFile] = Field(
+        default_factory=list,
+    )
+
+    contents: List[RepositoryFileContent] = Field(
+        default_factory=list,
+    )
+
+    @property
+    def total_files(self) -> int:
+        return self.statistics.total_files
+
+    @property
+    def analyzed_files(self) -> int:
+        return self.statistics.analyzed_files
+
+    @property
+    def skipped_files(self) -> int:
+        return self.statistics.skipped_files
+
+
+# ==========================================================
+# REPOSITORY CONTENT
+# ==========================================================
+
+class RepositoryContent(BaseModel):
+    metadata: RepositoryMetadata
+
+    total_files: int = Field(
+        default=0,
+        ge=0,
+    )
+
+    analyzed_files: int = Field(
+        default=0,
+        ge=0,
+    )
+
+    skipped_files: int = Field(
+        default=0,
+        ge=0,
+    )
+
+    total_content_size: int = Field(
+        default=0,
+        ge=0,
+    )
+
+    files: List[RepositoryFileContent] = Field(
+        default_factory=list,
+    )
+
+
+# ==========================================================
+# REPOSITORY ANALYSIS RESULT
+# ==========================================================
+
+class RepositoryAnalysisResult(BaseModel):
     status: str
 
     repository: RepositoryStructure
 
-    message: str
+    message: Optional[str] = None

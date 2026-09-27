@@ -1,11 +1,6 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from app.agents.base_agent import BaseAgent
-from app.models.repository_models import (
-    RepositoryAnalysisResult,
-    RepositoryRequest
-)
-from app.services.github_service import GitHubService
 from app.services.repository_service import RepositoryService
 
 
@@ -20,7 +15,7 @@ class RepositoryAgent(BaseAgent):
 
     def __init__(
         self,
-        repository_service: RepositoryService
+        repository_service: RepositoryService,
     ):
         self.repository_service = (
             repository_service
@@ -29,41 +24,52 @@ class RepositoryAgent(BaseAgent):
     async def run(
         self,
         task: str,
-        context: Dict[str, Any]
+        context: Optional[
+            Dict[str, Any]
+        ] = None,
     ) -> Dict[str, Any]:
 
-        repository_url = (
-            context.get(
-                "repository_url"
+        context = context or {}
+
+        repository_url = context.get(
+            "repository_url"
+        )
+
+        branch = context.get(
+            "branch"
+        )
+
+        include_contents = context.get(
+            "include_contents",
+            True,
+        )
+
+        max_files = context.get(
+            "max_files"
+        )
+
+        if not repository_url:
+
+            raise ValueError(
+                "repository_url is required "
+                "for repository inspection"
             )
-        )
 
-        branch = (
-            context.get(
-                "branch"
-            )
-        )
-
-        request = RepositoryRequest(
-            repository_url=repository_url,
-            branch=branch
-        )
-
-        structure = (
+        repository = (
             await self.repository_service
             .inspect_repository(
-                repository_url=request.repository_url,
-                branch=request.branch
+                repository_url=repository_url,
+                branch=branch,
+                include_contents=include_contents,
+                max_files=max_files,
             )
         )
 
-        result = RepositoryAnalysisResult(
-            status="COMPLETED",
-            repository=structure,
-            message=(
+        return {
+            "status": "COMPLETED",
+            "repository": repository,
+            "message": (
                 "GitHub repository successfully "
                 "retrieved and inspected."
-            )
-        )
-
-        return result.model_dump()
+            ),
+        }

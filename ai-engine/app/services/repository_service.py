@@ -1,36 +1,54 @@
 import os
-import shutil
-import subprocess
-import tempfile
-from pathlib import Path
-from typing import List, Optional
+from pathlib import PurePosixPath
+from typing import Any, Dict, List, Optional
 
 from app.models.repository_models import (
     RepositoryFile,
+    RepositoryFileContent,
     RepositoryMetadata,
-    RepositoryStructure
+    RepositoryStatistics,
+    RepositoryStructure,
 )
+
 from app.services.github_service import GitHubService
 
 
 class RepositoryService:
+    """
+    High-level repository inspection service.
+
+    Responsibilities:
+    - Parse repository information
+    - Retrieve GitHub metadata
+    - Retrieve repository tree
+    - Filter irrelevant/binary files
+    - Retrieve source contents
+    - Build normalized repository models
+    - Calculate repository statistics
+
+    Repository code is NEVER executed.
+    """
 
     DEFAULT_MAX_FILE_SIZE = 512 * 1024
 
-    DEFAULT_MAX_FILES = 1000
+    DEFAULT_MAX_FILES = 100
 
     SOURCE_EXTENSIONS = {
         ".py": "Python",
+        ".java": "Java",
         ".js": "JavaScript",
         ".jsx": "JavaScript",
         ".ts": "TypeScript",
         ".tsx": "TypeScript",
+        ".mjs": "JavaScript",
+        ".cjs": "JavaScript",
         ".java": "Java",
         ".c": "C",
-        ".h": "C",
+        ".h": "C/C++",
         ".cpp": "C++",
         ".cc": "C++",
         ".cxx": "C++",
+        ".hpp": "C++",
         ".cs": "C#",
         ".go": "Go",
         ".rs": "Rust",
@@ -43,380 +61,474 @@ class RepositoryService:
         ".scala": "Scala",
         ".sql": "SQL",
         ".html": "HTML",
+        ".htm": "HTML",
         ".css": "CSS",
         ".scss": "SCSS",
+        ".sass": "Sass",
         ".vue": "Vue",
         ".xml": "XML",
         ".yaml": "YAML",
         ".yml": "YAML",
         ".json": "JSON",
-        ".md": "Markdown"
+        ".md": "Markdown",
+        ".txt": "Text",
+        ".properties": "Properties",
+        ".gradle": "Gradle",
+        ".sh": "Shell",
+        ".bat": "Batch",
+        ".ps1": "PowerShell",
+        ".toml": "TOML",
+        ".ini": "INI",
+    }
+
+    SPECIAL_FILES = {
+        "dockerfile": "Dockerfile",
+        "makefile": "Makefile",
+        ".gitignore": "Git Ignore",
+        ".dockerignore": "Docker Ignore",
+        ".editorconfig": "EditorConfig",
     }
 
     IGNORED_DIRECTORIES = {
         ".git",
         ".svn",
         ".hg",
-
+        ".idea",
+        ".vscode",
         "node_modules",
         "__pycache__",
         ".pytest_cache",
         ".mypy_cache",
-
         ".venv",
         "venv",
         "env",
-
         "dist",
         "build",
         "target",
-
         ".next",
         ".nuxt",
-
         "coverage",
         ".coverage",
-
-        ".idea",
-        ".vscode"
+        "vendor",
+        "bower_components",
+        "bin",
+        "obj",
     }
 
-    IGNORED_FILENAMES = {
+    IGNORED_FILES = {
         ".env",
         ".env.local",
         ".env.production",
         ".env.development",
-
+        ".env.test",
+        ".env.staging",
         "id_rsa",
         "id_dsa",
         "id_ecdsa",
         "id_ed25519",
-
-        "credentials",
-        "credentials.json",
-
         ".npmrc",
-        ".pypirc"
+        ".pypirc",
+        "credentials.json",
+        "service-account.json",
+        "secrets.json",
+        "secrets.yaml",
+        "secrets.yml",
     }
 
-    IGNORED_EXTENSIONS = {
-        ".exe",
-        ".dll",
-        ".so",
-        ".dylib",
-
-        ".bin",
-        ".class",
-
-        ".jar",
-        ".war",
-
-        ".pyc",
-
+    BINARY_EXTENSIONS = {
         ".png",
         ".jpg",
         ".jpeg",
         ".gif",
-        ".bmp",
-        ".ico",
         ".webp",
-
+        ".ico",
+        ".bmp",
+        ".svg",
         ".mp3",
+        ".wav",
         ".mp4",
         ".avi",
         ".mov",
-
         ".zip",
         ".tar",
         ".gz",
         ".7z",
         ".rar",
-
-        ".pdf"
+        ".exe",
+        ".dll",
+        ".so",
+        ".dylib",
+        ".pdf",
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".otf",
+        ".jar",
+        ".class",
+        ".bin",
     }
 
     def __init__(
         self,
-        github_service: GitHubService
+        github_service: Optional[GitHubService] = None,
     ):
-        self.github_service = github_service
+        self.github_service = (
+            github_service
+            or GitHubService()
+        )
 
         self.max_file_size = int(
             os.getenv(
                 "REPOSITORY_MAX_FILE_SIZE",
-                str(self.DEFAULT_MAX_FILE_SIZE)
+                str(
+                    self.DEFAULT_MAX_FILE_SIZE
+                ),
             )
         )
 
         self.max_files = int(
             os.getenv(
                 "REPOSITORY_MAX_FILES",
-                str(self.DEFAULT_MAX_FILES)
-            )
-        )
-
-        self.clone_timeout = int(
-            os.getenv(
-                "REPOSITORY_CLONE_TIMEOUT",
-                "120"
+                str(
+                    self.DEFAULT_MAX_FILES
+                ),
             )
         )
 
     # ==========================================================
-    # CLONE REPOSITORY
+    # FILE HELPERS
     # ==========================================================
 
-    def clone_repository(
-        self,
-        repository_url: str,
-        branch: Optional[str] = None
+    @staticmethod
+    def _extension(
+        path: str,
     ) -> str:
 
-        owner, repository = (
-            self.github_service.parse_repository_url(
-                repository_url
-            )
+        return PurePosixPath(
+            path
+        ).suffix.lower()
+
+    def _language(
+        self,
+        path: str,
+    ) -> Optional[str]:
+
+        filename = (
+            path.replace("\\", "/")
+            .split("/")[-1]
+            .lower()
         )
 
-        clone_url = (
-            self.github_service.clone_url(
-                owner,
-                repository
-            )
-        )
-
-        temporary_directory = tempfile.mkdtemp(
-            prefix="codegrowth-repository-"
-        )
-
-        command = [
-            "git",
-            "clone",
-            "--depth",
-            "1",
-            "--no-tags",
-            "--single-branch"
-        ]
-
-        if branch:
-            command.extend(
-                [
-                    "--branch",
-                    branch
-                ]
-            )
-
-        command.extend(
-            [
-                clone_url,
-                temporary_directory
+        if filename in self.SPECIAL_FILES:
+            return self.SPECIAL_FILES[
+                filename
             ]
+
+        extension = self._extension(
+            path
         )
 
-        try:
+        return self.SOURCE_EXTENSIONS.get(
+            extension
+        )
 
-            subprocess.run(
-                command,
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=self.clone_timeout
-            )
-
-        except subprocess.TimeoutExpired as exc:
-
-            shutil.rmtree(
-                temporary_directory,
-                ignore_errors=True
-            )
-
-            raise RuntimeError(
-                "Repository cloning timed out"
-            ) from exc
-
-        except subprocess.CalledProcessError as exc:
-
-            shutil.rmtree(
-                temporary_directory,
-                ignore_errors=True
-            )
-
-            error_message = (
-                exc.stderr.strip()
-                if exc.stderr
-                else "Unknown git error"
-            )
-
-            raise RuntimeError(
-                f"Repository cloning failed: "
-                f"{error_message}"
-            ) from exc
-
-        except FileNotFoundError as exc:
-
-            shutil.rmtree(
-                temporary_directory,
-                ignore_errors=True
-            )
-
-            raise RuntimeError(
-                "Git executable was not found. "
-                "Install Git and ensure it is available "
-                "on PATH."
-            ) from exc
-
-        return temporary_directory
-
-    # ==========================================================
-    # FILE VALIDATION
-    # ==========================================================
-
-    def _is_allowed_file(
+    def _is_ignored_path(
         self,
-        path: Path
+        path: str,
     ) -> bool:
 
-        if path.name in self.IGNORED_FILENAMES:
-            return False
+        normalized = path.replace(
+            "\\",
+            "/",
+        )
 
-        if path.suffix.lower() in self.IGNORED_EXTENSIONS:
-            return False
+        parts = normalized.split(
+            "/"
+        )
 
-        if path.suffix.lower() not in self.SOURCE_EXTENSIONS:
-            return False
+        for part in parts:
 
-        try:
+            if part in self.IGNORED_DIRECTORIES:
+                return True
 
-            size = path.stat().st_size
+        filename = parts[-1].lower()
 
-        except OSError:
+        ignored_files = {
+            item.lower()
+            for item in self.IGNORED_FILES
+        }
 
-            return False
+        return filename in ignored_files
 
-        if size > self.max_file_size:
-            return False
-
-        return True
-
-    # ==========================================================
-    # DIRECTORY VALIDATION
-    # ==========================================================
-
-    def _is_ignored_directory(
+    def _is_binary(
         self,
-        path: Path
+        path: str,
     ) -> bool:
 
-        return path.name in self.IGNORED_DIRECTORIES
+        return (
+            self._extension(path)
+            in self.BINARY_EXTENSIONS
+        )
 
-    # ==========================================================
-    # FILE DISCOVERY
-    # ==========================================================
-
-    def discover_files(
+    def _is_supported_file(
         self,
-        repository_path: str
-    ) -> List[RepositoryFile]:
+        path: str,
+    ) -> bool:
 
-        root = Path(
-            repository_path
-        ).resolve()
+        if self._is_ignored_path(
+            path
+        ):
+            return False
 
-        if not root.exists():
-            raise ValueError(
-                "Repository directory does not exist"
-            )
+        if self._is_binary(
+            path
+        ):
+            return False
 
-        if not root.is_dir():
-            raise ValueError(
-                "Repository path is not a directory"
-            )
+        return (
+            self._language(path)
+            is not None
+        )
 
-        discovered_files: List[
+    # ==========================================================
+    # BUILD FILE LIST
+    # ==========================================================
+
+    def _build_file_list(
+        self,
+        tree: List[Dict[str, Any]],
+        max_files: Optional[int] = None,
+    ) -> tuple[
+        List[RepositoryFile],
+        int,
+    ]:
+
+        limit = (
+            max_files
+            if max_files is not None
+            else self.max_files
+        )
+
+        files: List[
             RepositoryFile
         ] = []
 
-        for current_root, directories, filenames in os.walk(
-            root
-        ):
+        skipped = 0
 
-            current_path = Path(
-                current_root
+        for item in tree:
+
+            if item.get("type") != "blob":
+                continue
+
+            path = item.get(
+                "path",
+                "",
             )
 
-            directories[:] = [
-                directory
-                for directory in directories
-                if not self._is_ignored_directory(
-                    current_path / directory
+            if not path:
+                continue
+
+            if not self._is_supported_file(
+                path
+            ):
+                skipped += 1
+                continue
+
+            size = int(
+                item.get(
+                    "size",
+                    0,
                 )
-            ]
+                or 0
+            )
 
-            for filename in filenames:
+            if size > self.max_file_size:
+                skipped += 1
+                continue
 
-                file_path = (
-                    current_path / filename
+            if len(files) >= limit:
+                skipped += 1
+                continue
+
+            files.append(
+                RepositoryFile(
+                    path=path,
+                    size=size,
+                    extension=self._extension(
+                        path
+                    ),
+                    language=self._language(
+                        path
+                    ),
                 )
+            )
 
-                if not self._is_allowed_file(
-                    file_path
-                ):
-                    continue
-
-                try:
-
-                    relative_path = (
-                        file_path
-                        .relative_to(root)
-                        .as_posix()
-                    )
-
-                    size = file_path.stat().st_size
-
-                except OSError:
-
-                    continue
-
-                extension = (
-                    file_path.suffix.lower()
-                )
-
-                language = (
-                    self.SOURCE_EXTENSIONS.get(
-                        extension
-                    )
-                )
-
-                discovered_files.append(
-                    RepositoryFile(
-                        path=relative_path,
-                        size=size,
-                        extension=extension,
-                        language=language
-                    )
-                )
-
-                if (
-                    len(discovered_files)
-                    >= self.max_files
-                ):
-                    return discovered_files
-
-        return discovered_files
+        return files, skipped
 
     # ==========================================================
-    # BUILD REPOSITORY STRUCTURE
+    # METADATA
+    # ==========================================================
+
+    def _build_metadata(
+        self,
+        metadata: Dict[str, Any],
+        owner: str,
+        repository: str,
+        branch: str,
+    ) -> RepositoryMetadata:
+
+        return RepositoryMetadata(
+            owner=owner,
+            name=repository,
+            url=self.github_service.canonical_url(
+                owner,
+                repository,
+            ),
+            branch=branch,
+            description=metadata.get(
+                "description"
+            ),
+            default_branch=metadata.get(
+                "default_branch"
+            ),
+            private=bool(
+                metadata.get(
+                    "private",
+                    False,
+                )
+            ),
+            fork=bool(
+                metadata.get(
+                    "fork",
+                    False,
+                )
+            ),
+            stars=int(
+                metadata.get(
+                    "stars",
+                    0,
+                )
+                or 0
+            ),
+            forks=int(
+                metadata.get(
+                    "forks",
+                    0,
+                )
+                or 0
+            ),
+            open_issues=int(
+                metadata.get(
+                    "open_issues",
+                    0,
+                )
+                or 0
+            ),
+        )
+
+    # ==========================================================
+    # LANGUAGE STATISTICS
+    # ==========================================================
+
+    def _build_language_statistics(
+        self,
+        files: List[RepositoryFile],
+    ) -> Dict[str, int]:
+
+        result: Dict[str, int] = {}
+
+        for file in files:
+
+            language = (
+                file.language
+                or "Unknown"
+            )
+
+            result[language] = (
+                result.get(
+                    language,
+                    0,
+                )
+                + 1
+            )
+
+        return result
+
+    # ==========================================================
+    # CONTENT RETRIEVAL
+    # ==========================================================
+
+    async def _retrieve_contents(
+        self,
+        owner: str,
+        repository: str,
+        branch: str,
+        files: List[RepositoryFile],
+    ) -> tuple[
+        List[RepositoryFileContent],
+        int,
+    ]:
+
+        contents: List[
+            RepositoryFileContent
+        ] = []
+
+        skipped = 0
+
+        for file in files:
+
+            try:
+
+                content = (
+                    await self.github_service
+                    .get_file_content(
+                        owner=owner,
+                        repository=repository,
+                        path=file.path,
+                        branch=branch,
+                    )
+                )
+
+            except (
+                ValueError,
+                RuntimeError,
+            ):
+
+                skipped += 1
+                continue
+
+            contents.append(
+                RepositoryFileContent(
+                    path=file.path,
+                    size=file.size,
+                    extension=file.extension,
+                    language=file.language,
+                    content=content,
+                    truncated=False,
+                )
+            )
+
+        return contents, skipped
+
+    # ==========================================================
+    # MAIN INSPECTION
     # ==========================================================
 
     async def inspect_repository(
         self,
         repository_url: str,
-        branch: Optional[str] = None
+        branch: Optional[str] = None,
+        include_contents: bool = True,
+        max_files: Optional[int] = None,
     ) -> RepositoryStructure:
 
         owner, repository = (
-            self.github_service.parse_repository_url(
+            self.github_service
+            .parse_repository_url(
                 repository_url
             )
         )
@@ -425,56 +537,105 @@ class RepositoryService:
             await self.github_service
             .get_repository_metadata(
                 owner,
-                repository
+                repository,
             )
         )
 
-        temporary_directory = None
+        selected_branch = (
+            branch
+            or metadata.get(
+                "default_branch"
+            )
+            or "main"
+        )
 
-        try:
+        tree = (
+            await self.github_service
+            .get_repository_tree(
+                owner=owner,
+                repository=repository,
+                branch=selected_branch,
+            )
+        )
 
-            temporary_directory = (
-                self.clone_repository(
-                    repository_url,
-                    branch
+        files, skipped_files = (
+            self._build_file_list(
+                tree=tree,
+                max_files=max_files,
+            )
+        )
+
+        contents: List[
+            RepositoryFileContent
+        ] = []
+
+        content_failures = 0
+
+        if include_contents:
+
+            (
+                contents,
+                content_failures,
+            ) = await self._retrieve_contents(
+                owner=owner,
+                repository=repository,
+                branch=selected_branch,
+                files=files,
+            )
+
+        total_skipped = (
+            skipped_files
+            + content_failures
+        )
+
+        total_source_bytes = sum(
+            file.size
+            for file in files
+        )
+
+        statistics = RepositoryStatistics(
+            total_files=len(files),
+            analyzed_files=len(contents),
+            skipped_files=total_skipped,
+            total_source_files=len(files),
+            total_source_bytes=total_source_bytes,
+            languages=(
+                self._build_language_statistics(
+                    files
                 )
+            ),
+        )
+
+        return RepositoryStructure(
+            metadata=self._build_metadata(
+                metadata=metadata,
+                owner=owner,
+                repository=repository,
+                branch=selected_branch,
+            ),
+            statistics=statistics,
+            files=files,
+            contents=contents,
+        )
+
+    # ==========================================================
+    # CONTENT-ONLY API
+    # ==========================================================
+
+    async def get_repository_contents(
+        self,
+        repository_url: str,
+        branch: Optional[str] = None,
+        max_files: Optional[int] = None,
+    ) -> List[RepositoryFileContent]:
+
+        repository = (
+            await self.inspect_repository(
+                repository_url=repository_url,
+                branch=branch,
+                include_contents=True,
+                max_files=max_files,
             )
+        )
 
-            files = self.discover_files(
-                temporary_directory
-            )
-
-            repository_metadata = (
-                RepositoryMetadata(
-                    owner=owner,
-                    name=repository,
-                    url=self.github_service
-                    .canonical_url(
-                        owner,
-                        repository
-                    ),
-                    branch=(
-                        branch
-                        or metadata.get(
-                            "default_branch"
-                        )
-                    )
-                )
-            )
-
-            return RepositoryStructure(
-                metadata=repository_metadata,
-                total_files=len(files),
-                analyzed_files=len(files),
-                skipped_files=0,
-                files=files
-            )
-
-        finally:
-
-            if temporary_directory:
-
-                shutil.rmtree(
-                    temporary_directory,
-                    ignore_errors=True
-                )
+        return repository.contents

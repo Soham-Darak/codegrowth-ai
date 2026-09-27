@@ -1,206 +1,761 @@
+import base64
 import os
-import re
-from typing import Tuple
+
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import quote, urlparse
 
 import httpx
 from dotenv import load_dotenv
 
-from app.models.repository_models import (
-    RepositoryMetadata
-)
 
 load_dotenv()
 
 
 class GitHubService:
+    """
+    GitHub API client used by CodeGrowth AI.
 
-    GITHUB_HOST = "github.com"
+    Responsibilities:
+    - Validate GitHub repository URLs
+    - Authenticate using GITHUB_TOKEN
+    - Retrieve repository metadata
+    - Retrieve repository tree
+    - Retrieve file contents
 
-    GITHUB_API = "https://api.github.com"
+    This service NEVER executes repository code.
+    """
 
-    def __init__(self):
+    API_BASE_URL = "https://api.github.com"
 
-        self.token = os.getenv(
-            "GITHUB_TOKEN"
-        )
+    DEFAULT_TIMEOUT = 30.0
 
-        self.timeout = float(
-            os.getenv(
-                "GITHUB_TIMEOUT",
-                "30"
+    MAX_FILE_SIZE = 512 * 1024
+
+    SUPPORTED_TEXT_EXTENSIONS = {
+        ".py",
+        ".java",
+        ".js",
+        ".jsx",
+        ".ts",
+        ".tsx",
+        ".c",
+        ".cpp",
+        ".h",
+        ".hpp",
+        ".cs",
+        ".go",
+        ".rs",
+        ".rb",
+        ".php",
+        ".swift",
+        ".kt",
+        ".kts",
+        ".scala",
+        ".sql",
+        ".html",
+        ".htm",
+        ".css",
+        ".scss",
+        ".sass",
+        ".json",
+        ".xml",
+        ".yaml",
+        ".yml",
+        ".md",
+        ".txt",
+        ".properties",
+        ".toml",
+        ".ini",
+        ".sh",
+        ".bat",
+        ".ps1",
+        ".gradle",
+        ".mjs",
+        ".cjs",
+    }
+
+    LANGUAGE_MAP = {
+        ".py": "Python",
+        ".java": "Java",
+        ".js": "JavaScript",
+        ".jsx": "JavaScript",
+        ".mjs": "JavaScript",
+        ".cjs": "JavaScript",
+        ".ts": "TypeScript",
+        ".tsx": "TypeScript",
+        ".c": "C",
+        ".cpp": "C++",
+        ".h": "C/C++",
+        ".hpp": "C++",
+        ".cs": "C#",
+        ".go": "Go",
+        ".rs": "Rust",
+        ".rb": "Ruby",
+        ".php": "PHP",
+        ".swift": "Swift",
+        ".kt": "Kotlin",
+        ".kts": "Kotlin",
+        ".scala": "Scala",
+        ".sql": "SQL",
+        ".html": "HTML",
+        ".htm": "HTML",
+        ".css": "CSS",
+        ".scss": "SCSS",
+        ".sass": "Sass",
+        ".json": "JSON",
+        ".xml": "XML",
+        ".yaml": "YAML",
+        ".yml": "YAML",
+        ".md": "Markdown",
+        ".txt": "Text",
+        ".properties": "Properties",
+        ".toml": "TOML",
+        ".ini": "INI",
+        ".sh": "Shell",
+        ".bat": "Batch",
+        ".ps1": "PowerShell",
+        ".gradle": "Gradle",
+    }
+
+    SPECIAL_TEXT_FILES = {
+        "dockerfile": "Dockerfile",
+        "makefile": "Makefile",
+        ".gitignore": "Git Ignore",
+        ".dockerignore": "Docker Ignore",
+        ".editorconfig": "EditorConfig",
+    }
+
+    def __init__(
+        self,
+        token: Optional[str] = None,
+    ):
+        self.token = (
+            token
+            or os.getenv("GITHUB_TOKEN")
+            or ""
+        ).strip()
+
+        self.headers = {
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "CodeGrowth-AI/1.0",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+
+        if self.token:
+            self.headers["Authorization"] = (
+                f"Bearer {self.token}"
             )
-        )
 
-    # ==================================================
-    # URL VALIDATION
-    # ==================================================
+    # ==========================================================
+    # URL HELPERS
+    # ==========================================================
 
     def parse_repository_url(
         self,
-        repository_url: str
+        repository_url: str,
     ) -> Tuple[str, str]:
 
-        if not isinstance(
-            repository_url,
-            str
-        ):
+        if not isinstance(repository_url, str):
             raise ValueError(
-                "Repository URL must be a string"
+                "Repository URL must be a string."
             )
 
-        repository_url = (
-            repository_url.strip()
-        )
+        repository_url = repository_url.strip()
 
-        if not repository_url:
+        parsed = urlparse(repository_url)
+
+        if parsed.scheme not in {
+            "http",
+            "https",
+        }:
             raise ValueError(
-                "Repository URL cannot be empty"
+                "Repository URL must use http or https."
             )
 
-        pattern = (
-            r"^https?://"
-            r"(?:www\.)?"
-            r"github\.com/"
-            r"([^/\s]+)/"
-            r"([^/\s]+)"
-            r"/?$"
-        )
+        hostname = (
+            parsed.hostname or ""
+        ).lower()
 
-        match = re.match(
-            pattern,
-            repository_url
-        )
-
-        if not match:
+        if hostname not in {
+            "github.com",
+            "www.github.com",
+        }:
             raise ValueError(
-                "Only valid GitHub repository URLs are supported"
+                "Only GitHub repository URLs are supported."
             )
 
-        owner = match.group(1)
+        parts = [
+            part
+            for part in parsed.path.split("/")
+            if part
+        ]
 
-        repository = match.group(2)
+        if len(parts) < 2:
+            raise ValueError(
+                "Invalid GitHub repository URL."
+            )
+
+        owner = parts[0]
+        repository = parts[1]
 
         if repository.endswith(".git"):
             repository = repository[:-4]
 
         if not owner or not repository:
             raise ValueError(
-                "Invalid GitHub repository URL"
+                "Unable to determine GitHub owner and repository."
             )
 
         return owner, repository
 
-    # ==================================================
-    # CANONICAL URL
-    # ==================================================
-
     def canonical_url(
         self,
         owner: str,
-        repository: str
+        repository: str,
     ) -> str:
 
         return (
             f"https://github.com/"
             f"{owner}/{repository}"
         )
-
-    # ==================================================
-    # GIT CLONE URL
-    # ==================================================
 
     def clone_url(
         self,
         owner: str,
-        repository: str
+        repository: str,
     ) -> str:
 
-        return (
-            f"https://github.com/"
-            f"{owner}/{repository}.git"
+        return self.canonical_url(
+            owner,
+            repository,
+        ) + ".git"
+
+    # ==========================================================
+    # HTTP REQUEST
+    # ==========================================================
+
+    async def _request(
+        self,
+        method: str,
+        endpoint: str,
+        **kwargs: Any,
+    ) -> httpx.Response:
+
+        url = (
+            f"{self.API_BASE_URL}"
+            f"{endpoint}"
         )
 
-    # ==================================================
-    # GITHUB API HEADERS
-    # ==================================================
+        headers = dict(
+            self.headers
+        )
 
-    def _headers(self) -> dict:
+        request_headers = kwargs.pop(
+            "headers",
+            None,
+        )
 
-        headers = {
-            "Accept": (
-                "application/vnd.github+json"
-            ),
-            "User-Agent": "CodeGrowth-AI"
-        }
-
-        if self.token:
-
-            headers["Authorization"] = (
-                f"Bearer {self.token}"
+        if request_headers:
+            headers.update(
+                request_headers
             )
 
-        return headers
+        timeout = kwargs.pop(
+            "timeout",
+            self.DEFAULT_TIMEOUT,
+        )
 
-    # ==================================================
+        async with httpx.AsyncClient(
+            timeout=timeout,
+            follow_redirects=True,
+        ) as client:
+
+            try:
+                response = await client.request(
+                    method,
+                    url,
+                    headers=headers,
+                    **kwargs,
+                )
+
+            except httpx.RequestError as exc:
+
+                raise RuntimeError(
+                    f"Unable to connect to GitHub: {exc}"
+                ) from exc
+
+        if response.status_code == 401:
+            raise RuntimeError(
+                "GitHub authentication failed. "
+                "Check that GITHUB_TOKEN is valid."
+            )
+
+        if response.status_code == 403:
+
+            remaining = response.headers.get(
+                "X-RateLimit-Remaining"
+            )
+
+            reset = response.headers.get(
+                "X-RateLimit-Reset"
+            )
+
+            if remaining == "0":
+                raise RuntimeError(
+                    "GitHub API rate limit exceeded. "
+                    f"Rate limit reset timestamp: "
+                    f"{reset or 'unknown'}."
+                )
+
+            raise RuntimeError(
+                "GitHub API access was forbidden. "
+                "Check GITHUB_TOKEN permissions and "
+                "repository access."
+            )
+
+        if response.status_code == 404:
+            raise RuntimeError(
+                "GitHub repository or resource was not found. "
+                "Check the repository URL, branch, "
+                "and token permissions."
+            )
+
+        if not response.is_success:
+
+            try:
+                data = response.json()
+
+                message = data.get(
+                    "message",
+                    response.text,
+                )
+
+            except Exception:
+                message = response.text
+
+            raise RuntimeError(
+                f"GitHub API error "
+                f"({response.status_code}): {message}"
+            )
+
+        return response
+
+    # ==========================================================
     # REPOSITORY METADATA
-    # ==================================================
+    # ==========================================================
 
     async def get_repository_metadata(
         self,
         owner: str,
-        repository: str
-    ) -> dict:
+        repository: str,
+    ) -> Dict[str, Any]:
 
-        url = (
-            f"{self.GITHUB_API}/repos/"
-            f"{owner}/{repository}"
+        response = await self._request(
+            "GET",
+            f"/repos/{owner}/{repository}",
         )
 
-        try:
+        data = response.json()
 
-            async with httpx.AsyncClient(
-                timeout=self.timeout
-            ) as client:
+        return {
+            "owner": (
+                data.get("owner", {})
+                .get("login", owner)
+            ),
+            "name": data.get(
+                "name",
+                repository,
+            ),
+            "url": data.get(
+                "html_url",
+                self.canonical_url(
+                    owner,
+                    repository,
+                ),
+            ),
+            "description": data.get(
+                "description"
+            ),
+            "default_branch": data.get(
+                "default_branch",
+                "main",
+            ),
+            "private": bool(
+                data.get(
+                    "private",
+                    False,
+                )
+            ),
+            "fork": bool(
+                data.get(
+                    "fork",
+                    False,
+                )
+            ),
+            "stars": int(
+                data.get(
+                    "stargazers_count",
+                    0,
+                )
+                or 0
+            ),
+            "forks": int(
+                data.get(
+                    "forks_count",
+                    0,
+                )
+                or 0
+            ),
+            "open_issues": int(
+                data.get(
+                    "open_issues_count",
+                    0,
+                )
+                or 0
+            ),
+            "language": data.get(
+                "language"
+            ),
+        }
 
-                response = await client.get(
-                    url,
-                    headers=self._headers()
+    async def get_repository(
+        self,
+        repository_url: str,
+    ) -> Dict[str, Any]:
+
+        owner, repository = (
+            self.parse_repository_url(
+                repository_url
+            )
+        )
+
+        return await self.get_repository_metadata(
+            owner,
+            repository,
+        )
+
+    async def resolve_branch(
+        self,
+        repository_url: str,
+        branch: Optional[str] = None,
+    ) -> str:
+
+        if branch:
+            return branch
+
+        owner, repository = (
+            self.parse_repository_url(
+                repository_url
+            )
+        )
+
+        metadata = await self.get_repository_metadata(
+            owner,
+            repository,
+        )
+
+        resolved = metadata.get(
+            "default_branch"
+        )
+
+        if not resolved:
+            raise RuntimeError(
+                "Unable to determine repository default branch."
+            )
+
+        return resolved
+
+    # ==========================================================
+    # REPOSITORY TREE
+    # ==========================================================
+
+    async def get_repository_tree(
+        self,
+        owner: str,
+        repository: str,
+        branch: str,
+    ) -> List[Dict[str, Any]]:
+
+        encoded_branch = quote(
+            branch,
+            safe="",
+        )
+
+        response = await self._request(
+            "GET",
+            (
+                f"/repos/{owner}/{repository}"
+                f"/git/trees/{encoded_branch}"
+            ),
+            params={
+                "recursive": "1",
+            },
+        )
+
+        data = response.json()
+
+        if data.get("truncated"):
+            raise RuntimeError(
+                "GitHub returned a truncated repository tree. "
+                "The repository is too large for the current "
+                "inspection mode."
+            )
+
+        return data.get(
+            "tree",
+            [],
+        )
+
+    async def get_tree(
+        self,
+        repository_url: str,
+        branch: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+
+        owner, repository = (
+            self.parse_repository_url(
+                repository_url
+            )
+        )
+
+        resolved_branch = (
+            await self.resolve_branch(
+                repository_url,
+                branch,
+            )
+        )
+
+        return await self.get_repository_tree(
+            owner=owner,
+            repository=repository,
+            branch=resolved_branch,
+        )
+
+    async def list_files(
+        self,
+        owner: str,
+        repository: str,
+        branch: str,
+    ) -> List[Dict[str, Any]]:
+
+        tree = await self.get_repository_tree(
+            owner=owner,
+            repository=repository,
+            branch=branch,
+        )
+
+        files = []
+
+        for item in tree:
+
+            if item.get("type") != "blob":
+                continue
+
+            path = item.get(
+                "path",
+                "",
+            )
+
+            if not path:
+                continue
+
+            files.append(
+                {
+                    "path": path,
+                    "size": int(
+                        item.get(
+                            "size",
+                            0,
+                        )
+                        or 0
+                    ),
+                    "sha": item.get(
+                        "sha"
+                    ),
+                    "url": item.get(
+                        "url"
+                    ),
+                }
+            )
+
+        return files
+
+    # ==========================================================
+    # FILE HELPERS
+    # ==========================================================
+
+    def get_extension(
+        self,
+        path: str,
+    ) -> str:
+
+        filename = path.rsplit(
+            "/",
+            1,
+        )[-1].lower()
+
+        if filename in self.SPECIAL_TEXT_FILES:
+            return ""
+
+        if "." not in filename:
+            return ""
+
+        return (
+            "."
+            + filename.rsplit(
+                ".",
+                1,
+            )[-1]
+        )
+
+    def get_language(
+        self,
+        path: str,
+    ) -> Optional[str]:
+
+        filename = path.rsplit(
+            "/",
+            1,
+        )[-1].lower()
+
+        if filename in self.SPECIAL_TEXT_FILES:
+            return self.SPECIAL_TEXT_FILES[
+                filename
+            ]
+
+        extension = self.get_extension(
+            path
+        )
+
+        return self.LANGUAGE_MAP.get(
+            extension
+        )
+
+    def is_supported_text_file(
+        self,
+        path: str,
+    ) -> bool:
+
+        filename = path.rsplit(
+            "/",
+            1,
+        )[-1].lower()
+
+        if filename in self.SPECIAL_TEXT_FILES:
+            return True
+
+        extension = self.get_extension(
+            path
+        )
+
+        return (
+            extension
+            in self.SUPPORTED_TEXT_EXTENSIONS
+        )
+
+    # ==========================================================
+    # FILE CONTENT
+    # ==========================================================
+
+    async def get_file_content(
+        self,
+        owner: str,
+        repository: str,
+        path: str,
+        branch: str,
+    ) -> str:
+
+        encoded_path = quote(
+            path,
+            safe="/",
+        )
+
+        response = await self._request(
+            "GET",
+            (
+                f"/repos/{owner}/{repository}"
+                f"/contents/{encoded_path}"
+            ),
+            params={
+                "ref": branch,
+            },
+        )
+
+        data = response.json()
+
+        if isinstance(data, list):
+            raise RuntimeError(
+                f"{path} is a directory, not a file."
+            )
+
+        size = int(
+            data.get(
+                "size",
+                0,
+            )
+            or 0
+        )
+
+        if size > self.MAX_FILE_SIZE:
+            raise RuntimeError(
+                f"File {path} is too large for analysis."
+            )
+
+        content = data.get(
+            "content"
+        )
+
+        if content:
+
+            content = content.replace(
+                "\n",
+                "",
+            )
+
+            try:
+
+                decoded = base64.b64decode(
+                    content
                 )
 
-                response.raise_for_status()
+                return decoded.decode(
+                    "utf-8",
+                    errors="replace",
+                )
 
-                return response.json()
-
-        except httpx.HTTPStatusError as exc:
-
-            if exc.response.status_code == 404:
-
-                raise ValueError(
-                    "GitHub repository was not found "
-                    "or is not accessible"
-                ) from exc
-
-            if exc.response.status_code == 401:
-
-                raise ValueError(
-                    "GitHub authentication failed. "
-                    "Check GITHUB_TOKEN."
-                ) from exc
-
-            if exc.response.status_code == 403:
+            except Exception as exc:
 
                 raise RuntimeError(
-                    "GitHub API access was forbidden. "
-                    "The API rate limit may have been exceeded."
+                    f"Unable to decode file {path}: {exc}"
                 ) from exc
 
-            raise RuntimeError(
-                "GitHub API request failed with "
-                f"status {exc.response.status_code}"
-            ) from exc
+        download_url = data.get(
+            "download_url"
+        )
 
-        except httpx.HTTPError as exc:
+        if not download_url:
+            return ""
 
-            raise RuntimeError(
-                f"GitHub API request failed: {exc}"
-            ) from exc
+        async with httpx.AsyncClient(
+            timeout=self.DEFAULT_TIMEOUT,
+            follow_redirects=True,
+        ) as client:
+
+            try:
+
+                download_response = (
+                    await client.get(
+                        download_url,
+                        headers=self.headers,
+                    )
+                )
+
+                download_response.raise_for_status()
+
+                return download_response.text
+
+            except httpx.HTTPError as exc:
+
+                raise RuntimeError(
+                    f"Unable to download file {path}: {exc}"
+                ) from exc
