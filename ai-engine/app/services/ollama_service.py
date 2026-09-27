@@ -3,6 +3,7 @@ import os
 import httpx
 
 from app.services.llm_provider import LLMProvider
+from app.exceptions import ServiceUnavailableError, BadGatewayError
 
 
 class OllamaService(LLMProvider):
@@ -56,7 +57,7 @@ class OllamaService(LLMProvider):
 
         except httpx.HTTPError as exc:
 
-            raise RuntimeError(
+            raise ServiceUnavailableError(
                 f"Ollama request failed: {exc}"
             ) from exc
 
@@ -68,7 +69,7 @@ class OllamaService(LLMProvider):
         )
 
         if not isinstance(result, str):
-            raise RuntimeError(
+            raise BadGatewayError(
                 "Ollama returned an invalid response"
             )
 
@@ -106,7 +107,7 @@ class OllamaService(LLMProvider):
 
         except httpx.HTTPError as exc:
 
-            raise RuntimeError(
+            raise ServiceUnavailableError(
                 f"Ollama JSON request failed: {exc}"
             ) from exc
 
@@ -118,7 +119,7 @@ class OllamaService(LLMProvider):
         )
 
         if not isinstance(result, str):
-            raise RuntimeError(
+            raise BadGatewayError(
                 "Ollama returned an invalid JSON response"
             )
 

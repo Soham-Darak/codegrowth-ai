@@ -1,6 +1,7 @@
 from typing import Optional
 
 from app.services.llm_provider import LLMProvider
+from app.exceptions import BadGatewayError, ServiceUnavailableError
 
 
 class LLMRuntime:
@@ -64,13 +65,13 @@ class LLMRuntime:
                     result,
                     str
                 ):
-                    raise RuntimeError(
+                    raise BadGatewayError(
                         "LLM provider returned "
                         "an invalid response"
                     )
 
                 if not result.strip():
-                    raise RuntimeError(
+                    raise BadGatewayError(
                         "LLM provider returned "
                         "an empty response"
                     )
@@ -87,7 +88,7 @@ class LLMRuntime:
                 if attempt >= self.max_retries:
                     break
 
-        raise RuntimeError(
+        raise ServiceUnavailableError(
             f"LLM request failed after "
             f"{self.max_retries + 1} attempts"
         ) from last_error

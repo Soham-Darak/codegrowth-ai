@@ -7,6 +7,16 @@ from fastapi import (
     HTTPException,
     Request,
 )
+from fastapi.responses import JSONResponse
+
+from app.exceptions import (
+    AuthenticationError,
+    AuthorizationError,
+    BadGatewayError,
+    RateLimitError,
+    ResourceNotFoundError,
+    ServiceUnavailableError,
+)
 
 from app.agents.agent_models import (
     AgentRequest,
@@ -70,6 +80,36 @@ app = FastAPI(
     title="CodeGrowth AI Engine",
     version="0.7.0",
 )
+
+
+@app.exception_handler(ResourceNotFoundError)
+async def resource_not_found_handler(request: Request, exc: ResourceNotFoundError):
+    return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+
+@app.exception_handler(AuthenticationError)
+async def authentication_error_handler(request: Request, exc: AuthenticationError):
+    return JSONResponse(status_code=401, content={"detail": str(exc)})
+
+
+@app.exception_handler(AuthorizationError)
+async def authorization_error_handler(request: Request, exc: AuthorizationError):
+    return JSONResponse(status_code=403, content={"detail": str(exc)})
+
+
+@app.exception_handler(RateLimitError)
+async def rate_limit_error_handler(request: Request, exc: RateLimitError):
+    return JSONResponse(status_code=429, content={"detail": str(exc)})
+
+
+@app.exception_handler(ServiceUnavailableError)
+async def service_unavailable_handler(request: Request, exc: ServiceUnavailableError):
+    return JSONResponse(status_code=503, content={"detail": str(exc)})
+
+
+@app.exception_handler(BadGatewayError)
+async def bad_gateway_handler(request: Request, exc: BadGatewayError):
+    return JSONResponse(status_code=502, content={"detail": str(exc)})
 
 
 # ==========================================================

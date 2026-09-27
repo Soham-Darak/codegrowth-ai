@@ -7,6 +7,15 @@ from urllib.parse import quote, urlparse
 import httpx
 from dotenv import load_dotenv
 
+from app.exceptions import (
+    AuthenticationError,
+    AuthorizationError,
+    BadGatewayError,
+    RateLimitError,
+    ResourceNotFoundError,
+    ServiceUnavailableError,
+)
+
 
 load_dotenv()
 
@@ -280,12 +289,12 @@ class GitHubService:
 
             except httpx.RequestError as exc:
 
-                raise RuntimeError(
+                raise ServiceUnavailableError(
                     f"Unable to connect to GitHub: {exc}"
                 ) from exc
 
         if response.status_code == 401:
-            raise RuntimeError(
+            raise AuthenticationError(
                 "GitHub authentication failed. "
                 "Check that GITHUB_TOKEN is valid."
             )
@@ -301,20 +310,20 @@ class GitHubService:
             )
 
             if remaining == "0":
-                raise RuntimeError(
+                raise RateLimitError(
                     "GitHub API rate limit exceeded. "
                     f"Rate limit reset timestamp: "
                     f"{reset or 'unknown'}."
                 )
 
-            raise RuntimeError(
+            raise AuthorizationError(
                 "GitHub API access was forbidden. "
                 "Check GITHUB_TOKEN permissions and "
                 "repository access."
             )
 
         if response.status_code == 404:
-            raise RuntimeError(
+            raise ResourceNotFoundError(
                 "GitHub repository or resource was not found. "
                 "Check the repository URL, branch, "
                 "and token permissions."
@@ -333,7 +342,7 @@ class GitHubService:
             except Exception:
                 message = response.text
 
-            raise RuntimeError(
+            raise BadGatewayError(
                 f"GitHub API error "
                 f"({response.status_code}): {message}"
             )
