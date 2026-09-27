@@ -1,7 +1,7 @@
 # CodeGrowth AI — Project Status
 
 ## CURRENT PHASE
-Phase 4: Frontend Dashboard Integration + OAuth Authentication
+Phase 5: Repository Connection Workflow + Developer Growth Loop UI
 
 ## COMPLETED PHASES
 | Phase | Description | Status |
@@ -10,6 +10,7 @@ Phase 4: Frontend Dashboard Integration + OAuth Authentication
 | 1 | AI Engine Test Suite (74 tests) | ✅ COMPLETED |
 | 2 | API Error Handling & Hardening | ✅ COMPLETED |
 | 3 | Backend Persistence Integration | ✅ COMPLETED |
+| 4 | OAuth + Premium Landing Page | ✅ COMPLETED |
 
 ## CURRENT ARCHITECTURE
 
@@ -47,7 +48,9 @@ Services (GitHub API via httpx, Ollama via httpx)
 - **Tests**: 74 tests (pytest-asyncio)
 
 ## WORKING FEATURES
+- Premium Landing Page (marketing, role explanations, CTA)
 - Email/password registration and login (JWT)
+- OAuth Authentication (Google, GitHub) via backend provider linking
 - Role-based dashboards (Student, Teacher, Admin)
 - Course management (create, enroll, browse)
 - Assignment creation and submission
@@ -58,16 +61,12 @@ Services (GitHub API via httpx, Ollama via httpx)
 - Health monitoring endpoints
 
 ## KNOWN ISSUES
-- No OAuth (Google/GitHub) — only email/password auth exists
-- No landing page — `/` redirects to login immediately
-- `AppUser` has no `provider`/`providerId` fields for OAuth
-- No CORS configuration for cross-origin access
-- `.env.example` missing OAuth configuration variables
 - Frontend has no repository analysis workflow yet
 - No developer growth tracking visualization
+- AppUser has avatarUrl but AppShell/Navbar doesn't display it yet
 
 ## NEXT PHASE
-Phase 4: OAuth Authentication Foundation + Landing Page
+Phase 5: Repository Connection Workflow + Developer Growth Loop UI
 
 ## HOW TO RUN
 
