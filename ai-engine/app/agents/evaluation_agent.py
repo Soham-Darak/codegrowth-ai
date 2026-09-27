@@ -44,6 +44,18 @@ class EvaluationAgent(BaseAgent):
 
         assignment = context.get("assignment", {})
         code = context.get("code", "")
+        repository_files = context.get("repository_files", [])
+
+        if not code and repository_files:
+            if isinstance(repository_files, list):
+                code_parts = []
+                for rf in repository_files:
+                    if isinstance(rf, dict) and rf.get("content"):
+                        path = rf.get("path", "Unknown File")
+                        code_parts.append(f"--- File: {path} ---")
+                        code_parts.append(rf["content"])
+                        code_parts.append("")
+                code = "\n".join(code_parts)
 
         if not isinstance(code, str) or not code.strip():
             raise ValueError(

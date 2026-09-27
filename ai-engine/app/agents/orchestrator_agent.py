@@ -254,10 +254,8 @@ class OrchestratorAgent:
         # ----------------------------------------------------
 
         if (
-            agent.name == "repository-agent"
-            and context.get(
-                "repository_url"
-            )
+            context.get("repository_url")
+            and agent.name in ("repository-agent", "code-analysis-agent", "evaluation-agent")
         ):
 
             task_lower = (
@@ -273,6 +271,9 @@ class OrchestratorAgent:
                 "assessment",
                 "quality",
                 "security",
+                "assignment evaluation",
+                "evaluate submission",
+                "grade submission",
             ]
 
             is_analysis_task = any(
@@ -280,10 +281,19 @@ class OrchestratorAgent:
                 for keyword in analysis_keywords
             )
 
-            # Inspection-only: just return repo data
-            if not is_analysis_task:
+            # If it's the evaluation agent, it ALWAYS needs contents
+            if agent.name == "evaluation-agent":
+                is_analysis_task = True
 
-                result = await agent.run(
+            repo_agent = self.agents.get("repository-agent")
+
+            if not repo_agent:
+                raise ValueError("Repository agent is not registered.")
+
+            # Inspection-only: just return repo data
+            if not is_analysis_task and agent.name == "repository-agent":
+
+                result = await repo_agent.run(
                     task,
                     context,
                 )
@@ -295,7 +305,7 @@ class OrchestratorAgent:
                     result = result.model_dump()
 
                 return {
-                    "agent": agent.name,
+                    "agent": repo_agent.name,
                     "status": "COMPLETED",
                     "result": result,
                 }
@@ -307,7 +317,7 @@ class OrchestratorAgent:
             }
 
             repository_agent_result = (
-                await agent.run(
+                await repo_agent.run(
                     task,
                     repository_context,
                 )
@@ -366,25 +376,26 @@ class OrchestratorAgent:
                         )
 
                     return {
-                        "agent": agent.name,
+                        "agent": repo_agent.name,
                         "status": "COMPLETED",
                         "result": (
                             repository_agent_result
                         ),
                     }
 
-                code_agent = self.agents.get(
-                    "code-analysis-agent"
-                )
+                # If the original agent was repository-agent, but this is an analysis task,
+                # default to code-analysis-agent
+                target_agent = agent
+                if agent.name == "repository-agent":
+                    target_agent = self.agents.get("code-analysis-agent")
 
-                if not code_agent:
+                if not target_agent:
                     raise ValueError(
-                        "Code analysis agent is "
-                        "not registered."
+                        f"Target agent is not registered."
                     )
 
                 analysis_result = (
-                    await code_agent.run(
+                    await target_agent.run(
                         task,
                         {
                             **context,
@@ -405,8 +416,8 @@ class OrchestratorAgent:
                     )
 
                 return {
-                    "agent": "code-analysis-agent",
-                    "source_agent": "repository-agent",
+                    "agent": target_agent.name,
+                    "source_agent": repo_agent.name,
                     "status": "COMPLETED",
                     "result": analysis_result,
                 }
@@ -421,7 +432,7 @@ class OrchestratorAgent:
                 )
 
             return {
-                "agent": agent.name,
+                "agent": repo_agent.name,
                 "status": "COMPLETED",
                 "result": repository_agent_result,
             }
