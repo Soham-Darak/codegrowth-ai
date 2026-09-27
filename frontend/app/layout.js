@@ -1,14 +1,18 @@
 import "./globals.css";
+import CodeGrowthBackdrop from "./components/CodeGrowthBackdrop";
 
 export const metadata = {
   title: "CodeGrowth AI",
-  description: "AI-assisted software engineering workspace",
+  description: "A local-first AI engineering workspace for learning, coding, and growth.",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <CodeGrowthBackdrop />
+        {children}
+      </body>
     </html>
   );
 }

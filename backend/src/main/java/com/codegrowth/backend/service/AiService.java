@@ -2,6 +2,7 @@ package com.codegrowth.backend.service;
 
 import com.codegrowth.backend.dto.GenerateRequest;
 import com.codegrowth.backend.dto.GenerateResponse;
+import com.codegrowth.backend.entity.AppUser;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -21,11 +22,13 @@ public class AiService {
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final CacheService cacheService;
+    private final AiGenerationHistoryService historyService;
     private final String generateUrl;
 
     public AiService(
             ObjectMapper objectMapper,
             CacheService cacheService,
+            AiGenerationHistoryService historyService,
             @Value("${codegrowth.ai.base-url:http://localhost:8000}") String baseUrl) {
         this.httpClient = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
@@ -33,20 +36,23 @@ public class AiService {
                 .build();
         this.objectMapper = objectMapper;
         this.cacheService = cacheService;
+        this.historyService = historyService;
         this.generateUrl = baseUrl.replaceAll("/$", "") + "/generate";
     }
 
-    public GenerateResponse generate(GenerateRequest request) {
-        String cacheKey = cacheKey(request.prompt());
+    public GenerateResponse generate(AppUser user, GenerateRequest request) {
+        String prompt = request.prompt().trim();
+        String cacheKey = cacheKey(prompt);
         String cached = cacheService.get(cacheKey);
 
         if (cached != null) {
-            return new GenerateResponse("cache", cached);
+            GenerateResponse result = new GenerateResponse("cache", cached);
+            historyService.save(user, prompt, result.response(), result.model());
+            return result;
         }
 
         try {
-            String requestBody = objectMapper.writeValueAsString(request);
-
+            String requestBody = objectMapper.writeValueAsString(new GenerateRequest(prompt));
             HttpRequest httpRequest = HttpRequest.newBuilder()
                     .uri(URI.create(generateUrl))
                     .version(HttpClient.Version.HTTP_1_1)
@@ -67,6 +73,7 @@ public class AiService {
 
             GenerateResponse result = objectMapper.readValue(response.body(), GenerateResponse.class);
             cacheService.set(cacheKey, result.response());
+            historyService.save(user, prompt, result.response(), result.model());
             return result;
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to communicate with AI engine", exception);
@@ -79,7 +86,7 @@ public class AiService {
     private String cacheKey(String prompt) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(prompt.trim().getBytes(StandardCharsets.UTF_8));
+            byte[] hash = digest.digest(prompt.getBytes(StandardCharsets.UTF_8));
             StringBuilder hex = new StringBuilder();
             for (byte value : hash) {
                 hex.append(String.format("%02x", value));
