@@ -2,6 +2,7 @@ package com.codegrowth.backend.api;
 
 import com.codegrowth.backend.entity.*;
 import com.codegrowth.backend.repository.*;
+import com.codegrowth.backend.service.AiEvaluationService;
 import java.time.Instant;
 import java.util.*;
 import org.springframework.http.ResponseEntity;
@@ -15,10 +16,13 @@ import org.springframework.web.bind.annotation.*;
 public class StudentController {
     private final AppUserRepository users; private final StudentProfileRepository profiles; private final CourseRepository courses;
     private final EnrollmentRepository enrollments; private final AssignmentRepository assignments; private final SubmissionRepository submissions; private final LearningGoalRepository goals; private final AnnouncementRepository announcements;
+    private final AiEvaluationService aiEvaluationService;
 
     public StudentController(AppUserRepository users, StudentProfileRepository profiles, CourseRepository courses, EnrollmentRepository enrollments,
-                             AssignmentRepository assignments, SubmissionRepository submissions, LearningGoalRepository goals, AnnouncementRepository announcements) {
+                             AssignmentRepository assignments, SubmissionRepository submissions, LearningGoalRepository goals, AnnouncementRepository announcements,
+                             AiEvaluationService aiEvaluationService) {
         this.users = users; this.profiles = profiles; this.courses = courses; this.enrollments = enrollments; this.assignments = assignments; this.submissions = submissions; this.goals = goals; this.announcements = announcements;
+        this.aiEvaluationService = aiEvaluationService;
     }
     @GetMapping("/overview") public ResponseEntity<Map<String,Object>> overview(Authentication auth) {
         AppUser u = user(auth); List<Enrollment> e = enrollments.findAllByStudentIdOrderByEnrolledAtDesc(u.getId());
@@ -36,9 +40,24 @@ public class StudentController {
         AppUser u = user(a); Assignment x = assignments.findById(assignmentId).orElseThrow();
         enrollments.findByStudentIdAndCourseId(u.getId(), x.getCourse().getId()).orElseThrow(() -> new IllegalArgumentException("Enroll in the course before submitting"));
         Submission s = submissions.findByAssignmentIdAndStudentId(assignmentId, u.getId()).orElseGet(() -> new Submission(x, u, body.getOrDefault("content", "")));
-        if (s.getId() != null) return s; return submissions.save(s);
+        boolean isNew = s.getId() == null;
+        s = submissions.save(s);
+        
+        if (isNew || Boolean.parseBoolean(body.getOrDefault("forceEvaluate", "false"))) {
+            aiEvaluationService.evaluateSubmissionAsync(s.getId());
+        }
+        
+        return s;
     }
     @GetMapping("/submissions") public List<Submission> submissions(Authentication a) { return submissions.findAllByStudentIdOrderBySubmittedAtDesc(user(a).getId()); }
+    
+    @GetMapping("/submissions/{id}/evaluation") 
+    public ResponseEntity<AiEvaluation> evaluation(Authentication a, @PathVariable Long id) {
+        Submission s = submissions.findById(id).orElseThrow();
+        if (!s.getStudent().getId().equals(user(a).getId())) return ResponseEntity.status(403).build();
+        return aiEvaluationService.getEvaluation(s).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
+    }
+
     @GetMapping("/goals") public List<LearningGoal> goals(Authentication a) { return goals.findAllByStudentIdOrderByCreatedAtDesc(user(a).getId()); }
     @PostMapping("/goals") public LearningGoal createGoal(Authentication a, @RequestBody Map<String,String> b) { Instant target = b.get("targetDate") == null || b.get("targetDate").isBlank() ? null : Instant.parse(b.get("targetDate")); return goals.save(new LearningGoal(user(a), b.getOrDefault("title", "Untitled goal"), b.get("description"), target)); }
     @PutMapping("/goals/{id}") public LearningGoal updateGoal(Authentication a, @PathVariable Long id, @RequestBody Map<String,String> b) { LearningGoal g = goals.findByIdAndStudentId(id, user(a).getId()).orElseThrow(); Instant target = b.get("targetDate") == null || b.get("targetDate").isBlank() ? null : Instant.parse(b.get("targetDate")); int progress = b.get("progress") == null ? g.getProgress() : Integer.parseInt(b.get("progress")); g.update(b.getOrDefault("title", g.getTitle()), b.getOrDefault("description", g.getDescription()), target, progress, b.getOrDefault("status", g.getStatus())); return goals.save(g); }

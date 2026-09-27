@@ -15,9 +15,16 @@ public class Assignment {
     private Instant dueAt;
     @Column(nullable = false) private Instant createdAt;
 
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "assignment_requirements", joinColumns = @JoinColumn(name = "assignment_id"))
+    @Column(name = "requirement", length = 500)
+    private java.util.List<String> requirements = new java.util.ArrayList<>();
+
     protected Assignment() {}
-    public Assignment(Course course, AppUser teacher, String title, String description, Instant dueAt) {
-        this.course = course; this.teacher = teacher; this.title = title; this.description = description; this.dueAt = dueAt; this.createdAt = Instant.now();
+    public Assignment(Course course, AppUser teacher, String title, String description, Instant dueAt, java.util.List<String> requirements) {
+        this.course = course; this.teacher = teacher; this.title = title; this.description = description; this.dueAt = dueAt; 
+        if (requirements != null) this.requirements = requirements;
+        this.createdAt = Instant.now();
     }
     public Long getId() { return id; }
     public Course getCourse() { return course; }
@@ -26,5 +33,10 @@ public class Assignment {
     public String getDescription() { return description; }
     public Instant getDueAt() { return dueAt; }
     public Instant getCreatedAt() { return createdAt; }
-    public void update(String title, String description, Instant dueAt) { this.title = title; this.description = description; this.dueAt = dueAt; }
+    public java.util.List<String> getRequirements() { return requirements; }
+    public void setRequirements(java.util.List<String> requirements) { this.requirements = requirements; }
+    public void update(String title, String description, Instant dueAt, java.util.List<String> requirements) { 
+        this.title = title; this.description = description; this.dueAt = dueAt; 
+        if (requirements != null) this.requirements = requirements;
+    }
 }
