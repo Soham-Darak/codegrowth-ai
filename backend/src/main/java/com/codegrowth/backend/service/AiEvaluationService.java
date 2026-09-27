@@ -28,8 +28,12 @@ public class AiEvaluationService {
     @Async
     @Transactional
     public void evaluateSubmissionAsync(Long submissionId) {
-        Submission submission = submissionRepository.findById(submissionId).orElseThrow();
-        evaluateSubmission(submission);
+        try {
+            Submission submission = submissionRepository.findById(submissionId).orElseThrow();
+            evaluateSubmission(submission);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
     
     public Optional<AiEvaluation> getEvaluation(Submission submission) {

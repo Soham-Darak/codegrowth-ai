@@ -261,7 +261,9 @@ public class OAuthService {
                 user.getName(),
                 user.getEmail(),
                 user.getRole().name(),
-                jwtService.generateToken(user.getId(), user.getEmail(), user.getRole())
+                jwtService.generateToken(user.getId(), user.getEmail(), user.getRole()),
+                user.getAvatarUrl(),
+                user.getProvider() != null ? user.getProvider() : "LOCAL"
         );
     }
 

@@ -149,6 +149,45 @@ public class AiService {
         }
     }
 
+    public String analyzeRepository(String repositoryUrl, String branch) {
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("repository_url", repositoryUrl);
+            if (branch != null && !branch.isBlank()) {
+                payload.put("branch", branch);
+            }
+            payload.put("max_files", 50); // limit to 50 files to avoid timeouts
+
+            String requestBody = objectMapper.writeValueAsString(payload);
+            String runUrl = generateUrl.replace("/generate", "/repositories/analyze");
+
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(runUrl))
+                    .version(HttpClient.Version.HTTP_1_1)
+                    .timeout(Duration.ofSeconds(300))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(
+                    httpRequest,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new IllegalStateException(
+                        "AI engine returned HTTP " + response.statusCode() + ": " + response.body());
+            }
+
+            return response.body();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to communicate with AI engine", exception);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("AI engine request was interrupted", exception);
+        }
+    }
+
     private String cacheKey(String prompt) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

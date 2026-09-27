@@ -63,6 +63,8 @@ public class AuthService {
     }
 
     private AuthResponse toResponse(AppUser user) {
-        return new AuthResponse(user.getId(), user.getName(), user.getEmail(), user.getRole().name(), jwtService.generateToken(user.getId(), user.getEmail(), user.getRole()));
+        return new AuthResponse(user.getId(), user.getName(), user.getEmail(), user.getRole().name(), 
+                jwtService.generateToken(user.getId(), user.getEmail(), user.getRole()),
+                user.getAvatarUrl(), user.getProvider() != null ? user.getProvider() : "LOCAL");
     }
 }

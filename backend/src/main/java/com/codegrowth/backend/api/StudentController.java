@@ -17,12 +17,16 @@ public class StudentController {
     private final AppUserRepository users; private final StudentProfileRepository profiles; private final CourseRepository courses;
     private final EnrollmentRepository enrollments; private final AssignmentRepository assignments; private final SubmissionRepository submissions; private final LearningGoalRepository goals; private final AnnouncementRepository announcements;
     private final AiEvaluationService aiEvaluationService;
+    private final ConnectedRepositoryRepository connectedRepos;
+    private final com.codegrowth.backend.service.RepositoryAnalysisService repositoryAnalysisService;
 
     public StudentController(AppUserRepository users, StudentProfileRepository profiles, CourseRepository courses, EnrollmentRepository enrollments,
                              AssignmentRepository assignments, SubmissionRepository submissions, LearningGoalRepository goals, AnnouncementRepository announcements,
-                             AiEvaluationService aiEvaluationService) {
+                             AiEvaluationService aiEvaluationService, ConnectedRepositoryRepository connectedRepos, com.codegrowth.backend.service.RepositoryAnalysisService repositoryAnalysisService) {
         this.users = users; this.profiles = profiles; this.courses = courses; this.enrollments = enrollments; this.assignments = assignments; this.submissions = submissions; this.goals = goals; this.announcements = announcements;
         this.aiEvaluationService = aiEvaluationService;
+        this.connectedRepos = connectedRepos;
+        this.repositoryAnalysisService = repositoryAnalysisService;
     }
     @GetMapping("/overview") public ResponseEntity<Map<String,Object>> overview(Authentication auth) {
         AppUser u = user(auth); List<Enrollment> e = enrollments.findAllByStudentIdOrderByEnrolledAtDesc(u.getId());
@@ -61,5 +65,33 @@ public class StudentController {
     @GetMapping("/goals") public List<LearningGoal> goals(Authentication a) { return goals.findAllByStudentIdOrderByCreatedAtDesc(user(a).getId()); }
     @PostMapping("/goals") public LearningGoal createGoal(Authentication a, @RequestBody Map<String,String> b) { Instant target = b.get("targetDate") == null || b.get("targetDate").isBlank() ? null : Instant.parse(b.get("targetDate")); return goals.save(new LearningGoal(user(a), b.getOrDefault("title", "Untitled goal"), b.get("description"), target)); }
     @PutMapping("/goals/{id}") public LearningGoal updateGoal(Authentication a, @PathVariable Long id, @RequestBody Map<String,String> b) { LearningGoal g = goals.findByIdAndStudentId(id, user(a).getId()).orElseThrow(); Instant target = b.get("targetDate") == null || b.get("targetDate").isBlank() ? null : Instant.parse(b.get("targetDate")); int progress = b.get("progress") == null ? g.getProgress() : Integer.parseInt(b.get("progress")); g.update(b.getOrDefault("title", g.getTitle()), b.getOrDefault("description", g.getDescription()), target, progress, b.getOrDefault("status", g.getStatus())); return goals.save(g); }
+
+    @GetMapping("/repositories")
+    public List<ConnectedRepository> getRepositories(Authentication auth) {
+        return connectedRepos.findAllByStudentIdOrderByConnectedAtDesc(user(auth).getId());
+    }
+
+    @PostMapping("/repositories")
+    public ConnectedRepository addRepository(Authentication auth, @RequestBody Map<String, String> body) {
+        ConnectedRepository repo = new ConnectedRepository(user(auth), body.get("repositoryUrl"), body.get("branch"), body.getOrDefault("name", "My Repository"));
+        repo = connectedRepos.save(repo);
+        repositoryAnalysisService.analyzeRepositoryAsync(repo.getId());
+        return repo;
+    }
+
+    @GetMapping("/repositories/{id}")
+    public ConnectedRepository getRepository(Authentication auth, @PathVariable Long id) {
+        ConnectedRepository repo = connectedRepos.findById(id).orElseThrow();
+        if (!repo.getStudent().getId().equals(user(auth).getId())) throw new IllegalArgumentException("Forbidden");
+        return repo;
+    }
+
+    @DeleteMapping("/repositories/{id}")
+    public void deleteRepository(Authentication auth, @PathVariable Long id) {
+        ConnectedRepository repo = connectedRepos.findById(id).orElseThrow();
+        if (!repo.getStudent().getId().equals(user(auth).getId())) throw new IllegalArgumentException("Forbidden");
+        connectedRepos.delete(repo);
+    }
+    
     private AppUser user(Authentication a) { return users.findByEmailIgnoreCase(a.getName()).orElseThrow(); }
 }
