@@ -7,26 +7,49 @@ from app.agents.agent_models import (
     AgentRequest,
     AgentResponse
 )
+
 from app.agents.code_analysis_agent import (
     CodeAnalysisAgent
 )
+
 from app.agents.evaluation_agent import (
     EvaluationAgent
 )
+
 from app.agents.orchestrator_agent import (
     OrchestratorAgent
 )
+
+from app.agents.repository_agent import (
+    RepositoryAgent
+)
+
+from app.models.repository_models import (
+    RepositoryRequest
+)
+
 from app.services.evidence_validator import (
     EvidenceValidator
 )
+
+from app.services.github_service import (
+    GitHubService
+)
+
 from app.services.llm_provider import (
     LLMProvider
 )
+
+from app.services.llm_runtime import (
+    LLMRuntime
+)
+
 from app.services.ollama_service import (
     OllamaService
 )
-from app.services.llm_runtime import (
-    LLMRuntime
+
+from app.services.repository_service import (
+    RepositoryService
 )
 
 
@@ -36,7 +59,7 @@ from app.services.llm_runtime import (
 
 app = FastAPI(
     title="CodeGrowth AI Engine",
-    version="0.5.0"
+    version="0.6.0"
 )
 
 
@@ -51,7 +74,7 @@ OLLAMA_MODEL = os.getenv(
 
 
 # ==================================================
-# SERVICES
+# LLM SERVICES
 # ==================================================
 
 llm_provider: LLMProvider = (
@@ -63,13 +86,29 @@ llm_runtime = LLMRuntime(
     max_retries=2
 )
 
+
+# ==================================================
+# EVIDENCE SERVICES
+# ==================================================
+
 evidence_validator = (
     EvidenceValidator()
 )
 
 
 # ==================================================
-# AGENTS
+# GITHUB SERVICES
+# ==================================================
+
+github_service = GitHubService()
+
+repository_service = RepositoryService(
+    github_service=github_service
+)
+
+
+# ==================================================
+# CODE ANALYSIS AGENT
 # ==================================================
 
 code_analysis_agent = (
@@ -77,6 +116,11 @@ code_analysis_agent = (
         llm_runtime
     )
 )
+
+
+# ==================================================
+# EVALUATION AGENT
+# ==================================================
 
 evaluation_agent = (
     EvaluationAgent(
@@ -88,11 +132,21 @@ evaluation_agent = (
 
 
 # ==================================================
+# REPOSITORY AGENT
+# ==================================================
+
+repository_agent = RepositoryAgent(
+    repository_service
+)
+
+
+# ==================================================
 # ORCHESTRATOR
 # ==================================================
 
 orchestrator = OrchestratorAgent(
     agents=[
+        repository_agent,
         code_analysis_agent,
         evaluation_agent
     ]
@@ -176,7 +230,9 @@ async def generate(
 
     try:
 
-        response = await llm_runtime.generate(prompt)
+        response = await llm_runtime.generate(
+            prompt
+        )
 
     except ValueError as exc:
 
@@ -230,6 +286,49 @@ async def run_agent(
         )
 
         return result
+
+    except ValueError as exc:
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc)
+        ) from exc
+
+    except RuntimeError as exc:
+
+        raise HTTPException(
+            status_code=502,
+            detail=str(exc)
+        ) from exc
+
+
+# ==================================================
+# DIRECT REPOSITORY INSPECTION
+# ==================================================
+
+@app.post("/repositories/inspect")
+async def inspect_repository(
+    request: RepositoryRequest
+):
+
+    try:
+
+        structure = (
+            await repository_service
+            .inspect_repository(
+                repository_url=request.repository_url,
+                branch=request.branch
+            )
+        )
+
+        return {
+            "status": "COMPLETED",
+            "repository": structure.model_dump(),
+            "message": (
+                "GitHub repository successfully "
+                "retrieved and inspected."
+            )
+        }
 
     except ValueError as exc:
 

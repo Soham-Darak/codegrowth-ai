@@ -16,6 +16,10 @@ class OrchestratorAgent:
             for agent in agents
         }
 
+    # ==================================================
+    # LIST AVAILABLE AGENTS
+    # ==================================================
+
     def list_agents(self):
 
         return [
@@ -25,6 +29,10 @@ class OrchestratorAgent:
             }
             for agent in self.agents.values()
         ]
+
+    # ==================================================
+    # SELECT AGENT
+    # ==================================================
 
     def select_agent(
         self,
@@ -36,9 +44,50 @@ class OrchestratorAgent:
 
         task_lower = task.lower()
 
-        # --------------------------------------------------
-        # Rule 1: Explicit evaluation context
-        # --------------------------------------------------
+        # ==================================================
+        # RULE 1: REPOSITORY CONTEXT
+        # ==================================================
+
+        if context.get("repository_url"):
+
+            agent = self.agents.get(
+                "repository-agent"
+            )
+
+            if agent:
+                return agent
+
+        # ==================================================
+        # RULE 2: REPOSITORY TASK
+        # ==================================================
+
+        repository_keywords = [
+            "repository",
+            "repo",
+            "github repository",
+            "github repo",
+            "inspect repository",
+            "inspect repo",
+            "repository structure",
+            "repository files",
+            "clone repository"
+        ]
+
+        if any(
+            keyword in task_lower
+            for keyword in repository_keywords
+        ):
+
+            agent = self.agents.get(
+                "repository-agent"
+            )
+
+            if agent:
+                return agent
+
+        # ==================================================
+        # RULE 3: EXPLICIT EVALUATION CONTEXT
+        # ==================================================
 
         if context.get("assignment"):
 
@@ -49,9 +98,9 @@ class OrchestratorAgent:
             if agent:
                 return agent
 
-        # --------------------------------------------------
-        # Rule 2: Explicit evaluation task
-        # --------------------------------------------------
+        # ==================================================
+        # RULE 4: EXPLICIT EVALUATION TASK
+        # ==================================================
 
         evaluation_keywords = [
             "assignment evaluation",
@@ -75,9 +124,9 @@ class OrchestratorAgent:
             if agent:
                 return agent
 
-        # --------------------------------------------------
-        # Rule 3: Code context
-        # --------------------------------------------------
+        # ==================================================
+        # RULE 5: CODE CONTEXT
+        # ==================================================
 
         if context.get("code"):
 
@@ -88,9 +137,9 @@ class OrchestratorAgent:
             if agent:
                 return agent
 
-        # --------------------------------------------------
-        # Rule 4: Code-related task
-        # --------------------------------------------------
+        # ==================================================
+        # RULE 6: CODE-RELATED TASK
+        # ==================================================
 
         code_keywords = [
             "code",
@@ -128,19 +177,25 @@ class OrchestratorAgent:
             if agent:
                 return agent
 
-        # --------------------------------------------------
-        # No suitable agent
-        # --------------------------------------------------
+        # ==================================================
+        # NO SUITABLE AGENT
+        # ==================================================
 
         raise ValueError(
             "No suitable agent found for this task"
         )
+
+    # ==================================================
+    # RUN SELECTED AGENT
+    # ==================================================
 
     async def run(
         self,
         task: str,
         context: Dict[str, Any] | None = None
     ):
+
+        context = context or {}
 
         agent = self.select_agent(
             task,
