@@ -247,10 +247,10 @@ class OrchestratorAgent:
         )
 
         # ----------------------------------------------------
-        # Repository requests need two stages:
+        # Repository requests:
         #
-        # 1. Retrieve repository (with contents)
-        # 2. Analyze repository contents
+        # Inspection-only → just return repository data
+        # Analysis → retrieve contents + run code analysis
         # ----------------------------------------------------
 
         if (
@@ -260,7 +260,47 @@ class OrchestratorAgent:
             )
         ):
 
-            # Ensure contents are retrieved for analysis
+            task_lower = (
+                task or ""
+            ).lower()
+
+            analysis_keywords = [
+                "analyze",
+                "analyse",
+                "review",
+                "audit",
+                "evaluate",
+                "assessment",
+                "quality",
+                "security",
+            ]
+
+            is_analysis_task = any(
+                keyword in task_lower
+                for keyword in analysis_keywords
+            )
+
+            # Inspection-only: just return repo data
+            if not is_analysis_task:
+
+                result = await agent.run(
+                    task,
+                    context,
+                )
+
+                if hasattr(
+                    result,
+                    "model_dump"
+                ):
+                    result = result.model_dump()
+
+                return {
+                    "agent": agent.name,
+                    "status": "COMPLETED",
+                    "result": result,
+                }
+
+            # Analysis: ensure contents are retrieved
             repository_context = {
                 **context,
                 "include_contents": True,

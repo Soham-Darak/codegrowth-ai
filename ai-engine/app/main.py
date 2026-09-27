@@ -299,48 +299,6 @@ async def run_agent(
             or {}
         )
 
-        task_lower = (
-            request.task.lower()
-        )
-
-        repository_keywords = [
-            "inspect repository",
-            "inspect repo",
-            "analyze repository",
-            "analyse repository",
-            "analyze repo",
-            "analyse repo",
-            "review repository",
-            "review repo",
-            "repository inspection",
-            "repository structure",
-        ]
-
-        is_repository_task = any(
-            keyword in task_lower
-            for keyword in repository_keywords
-        )
-
-        if (
-            context.get(
-                "repository_url"
-            )
-            and is_repository_task
-        ):
-
-            result = (
-                await repository_agent.run(
-                    task=request.task,
-                    context=context,
-                )
-            )
-
-            return {
-                "agent": "repository-agent",
-                "status": "COMPLETED",
-                "result": result,
-            }
-
         result = await orchestrator.run(
             request.task,
             context,
