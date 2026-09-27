@@ -249,8 +249,8 @@ class OrchestratorAgent:
         # ----------------------------------------------------
         # Repository requests need two stages:
         #
-        # 1. Retrieve repository
-        # 2. Analyze repository
+        # 1. Retrieve repository (with contents)
+        # 2. Analyze repository contents
         # ----------------------------------------------------
 
         if (
@@ -260,13 +260,16 @@ class OrchestratorAgent:
             )
         ):
 
+            # Ensure contents are retrieved for analysis
+            repository_context = {
+                **context,
+                "include_contents": True,
+            }
+
             repository_agent_result = (
                 await agent.run(
                     task,
-                    {
-                        **context,
-                        "operation": "content"
-                    }
+                    repository_context,
                 )
             )
 
@@ -281,14 +284,18 @@ class OrchestratorAgent:
                     )
                 )
 
+                # Extract file contents for analysis
+                repository_files = []
+
                 if hasattr(
                     repository,
-                    "files"
+                    "contents"
                 ):
 
                     repository_files = [
                         file.model_dump()
-                        for file in repository.files
+                        for file in repository.contents
+                        if file.content
                     ]
 
                 elif isinstance(
@@ -296,15 +303,35 @@ class OrchestratorAgent:
                     dict
                 ):
 
-                    repository_files = (
+                    repository_files = [
+                        f for f in
                         repository.get(
-                            "files",
+                            "contents",
                             []
                         )
-                    )
+                        if isinstance(f, dict)
+                        and f.get("content")
+                    ]
 
-                else:
-                    repository_files = []
+                # If no contents, return inspection
+                if not repository_files:
+
+                    if hasattr(
+                        repository_agent_result,
+                        "model_dump"
+                    ):
+                        repository_agent_result = (
+                            repository_agent_result
+                            .model_dump()
+                        )
+
+                    return {
+                        "agent": agent.name,
+                        "status": "COMPLETED",
+                        "result": (
+                            repository_agent_result
+                        ),
+                    }
 
                 code_agent = self.agents.get(
                     "code-analysis-agent"
@@ -312,15 +339,20 @@ class OrchestratorAgent:
 
                 if not code_agent:
                     raise ValueError(
-                        "Code analysis agent is not registered."
+                        "Code analysis agent is "
+                        "not registered."
                     )
 
-                analysis_result = await code_agent.run(
-                    task,
-                    {
-                        **context,
-                        "repository_files": repository_files
-                    }
+                analysis_result = (
+                    await code_agent.run(
+                        task,
+                        {
+                            **context,
+                            "repository_files": (
+                                repository_files
+                            ),
+                        },
+                    )
                 )
 
                 if hasattr(
@@ -336,7 +368,7 @@ class OrchestratorAgent:
                     "agent": "code-analysis-agent",
                     "source_agent": "repository-agent",
                     "status": "COMPLETED",
-                    "result": analysis_result
+                    "result": analysis_result,
                 }
 
             if hasattr(
@@ -351,7 +383,7 @@ class OrchestratorAgent:
             return {
                 "agent": agent.name,
                 "status": "COMPLETED",
-                "result": repository_agent_result
+                "result": repository_agent_result,
             }
 
         # ----------------------------------------------------
