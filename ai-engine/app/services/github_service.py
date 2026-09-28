@@ -768,3 +768,34 @@ class GitHubService:
                 raise RuntimeError(
                     f"Unable to download file {path}: {exc}"
                 ) from exc
+
+    # ==========================================================
+    # COMMITS & DIFFS
+    # ==========================================================
+
+    async def get_commits(
+        self,
+        owner: str,
+        repository: str,
+        branch: str,
+        per_page: int = 30,
+    ) -> List[Dict[str, Any]]:
+        response = await self._request(
+            "GET",
+            f"/repos/{owner}/{repository}/commits",
+            params={"sha": branch, "per_page": per_page},
+        )
+        return response.json()
+
+    async def get_commit_diff(
+        self,
+        owner: str,
+        repository: str,
+        commit_sha: str,
+    ) -> str:
+        response = await self._request(
+            "GET",
+            f"/repos/{owner}/{repository}/commits/{commit_sha}",
+            headers={"Accept": "application/vnd.github.v3.diff"},
+        )
+        return response.text

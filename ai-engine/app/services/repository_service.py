@@ -650,3 +650,41 @@ class RepositoryService:
         )
 
         return repository.contents
+
+    # ==========================================================
+    # COMMITS API
+    # ==========================================================
+
+    async def get_commit_history(
+        self,
+        repository_url: str,
+        branch: Optional[str] = None,
+        limit: int = 10,
+    ) -> List[Dict[str, Any]]:
+        owner, repository = self.github_service.parse_repository_url(repository_url)
+        resolved_branch = await self.github_service.resolve_branch(repository_url, branch)
+        
+        commits = await self.github_service.get_commits(
+            owner=owner,
+            repository=repository,
+            branch=resolved_branch,
+            per_page=limit,
+        )
+        
+        result = []
+        for commit in commits:
+            sha = commit.get("sha")
+            try:
+                diff = await self.github_service.get_commit_diff(owner, repository, sha)
+            except Exception:
+                diff = ""
+                
+            result.append({
+                "sha": sha,
+                "author": commit.get("commit", {}).get("author", {}).get("name"),
+                "date": commit.get("commit", {}).get("author", {}).get("date"),
+                "message": commit.get("commit", {}).get("message"),
+                "diff": diff[:5000] # truncate very large diffs
+            })
+            
+        return result

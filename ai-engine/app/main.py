@@ -415,6 +415,50 @@ async def inspect_repository(
 
 
 # ==========================================================
+# AUTHENTICITY ANALYSIS (COMMITS)
+# ==========================================================
+
+@app.post(
+    "/repositories/authenticity"
+)
+async def analyze_authenticity(
+    request: RepositoryRequest,
+):
+    try:
+        commits = await repository_service.get_commit_history(
+            repository_url=request.repository_url,
+            branch=request.branch,
+            limit=20
+        )
+        
+        if not commits:
+            raise RuntimeError("No commits found in the repository.")
+            
+        task = (
+            "Analyze the following commit history and diffs for authenticity. "
+            "Determine the probability (0-100) that this code was generated entirely by AI or pasted in without intermediate human work. "
+            "Look for: massive single commits, absence of debugging steps, lack of typical human refactoring, highly complex code appearing instantly. "
+            "Return a JSON object with 'ai_probability_score' (0-100, where 100 means highly likely AI), 'authenticity_score' (0-100, where 100 means highly likely human), and 'analysis_reasoning' (string)."
+        )
+        
+        analysis_result = await code_analysis_agent.run(
+            task=task,
+            context={"commits": commits}
+        )
+        
+        if hasattr(analysis_result, "model_dump"):
+            analysis_result = analysis_result.model_dump()
+            
+        return {
+            "status": "COMPLETED",
+            "analysis": analysis_result,
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+# ==========================================================
 # ANALYZE REPOSITORY
 # ==========================================================
 

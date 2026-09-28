@@ -188,6 +188,41 @@ public class AiService {
         }
     }
 
+    public String analyzeAuthenticity(String repositoryUrl) {
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("repository_url", repositoryUrl);
+
+            String requestBody = objectMapper.writeValueAsString(payload);
+            String runUrl = generateUrl.replace("/generate", "/repositories/authenticity");
+
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(runUrl))
+                    .version(HttpClient.Version.HTTP_1_1)
+                    .timeout(Duration.ofSeconds(120))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(
+                    httpRequest,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new IllegalStateException(
+                        "AI engine returned HTTP " + response.statusCode() + ": " + response.body());
+            }
+
+            return response.body();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to communicate with AI engine", exception);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("AI engine request was interrupted", exception);
+        }
+    }
+
     private String cacheKey(String prompt) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
