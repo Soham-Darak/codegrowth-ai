@@ -80,7 +80,9 @@ class LLMRuntime:
 
             except (
                 RuntimeError,
-                TimeoutError
+                TimeoutError,
+                ServiceUnavailableError,
+                BadGatewayError,
             ) as exc:
 
                 last_error = exc

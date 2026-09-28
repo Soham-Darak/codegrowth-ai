@@ -42,7 +42,6 @@ class RepositoryService:
         ".tsx": "TypeScript",
         ".mjs": "JavaScript",
         ".cjs": "JavaScript",
-        ".java": "Java",
         ".c": "C",
         ".h": "C/C++",
         ".cpp": "C++",
