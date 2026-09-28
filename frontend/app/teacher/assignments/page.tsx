@@ -60,7 +60,7 @@ export default function TeacherAssignments() {
   async function checkAuthenticity(submissionId) {
     setLoadingAuth(true);
     try {
-      const res = await apiPost(`/api/teacher/submissions/${submissionId}/authenticity`);
+      const res = await apiPost(`/api/teacher/submissions/${submissionId}/authenticity`, {});
       if (res.analysis) {
         setAuthenticityResults((prev) => ({
           ...prev,

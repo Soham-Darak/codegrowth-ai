@@ -5,9 +5,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Activity, BookOpen, Bot, ClipboardList, GraduationCap, History, LayoutDashboard, LogOut, Megaphone, Settings2, ShieldCheck, Sparkles, UserRound, Users, Wrench, Layers } from "lucide-react";
-import CodeGrowthScene from "@/components/visuals/CodeGrowthScene";
-
+import dynamic from "next/dynamic";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
+
+const CodeGrowthScene = dynamic(() => import("@/components/visuals/CodeGrowthScene"), { ssr: false });
 
 import { LucideIcon } from "lucide-react";
 

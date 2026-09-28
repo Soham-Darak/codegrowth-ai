@@ -47,7 +47,7 @@
   }
   
   .glass-card {
-    @apply glass shadow-xl shadow-slate-200/50 dark:shadow-none rounded-2xl;
+    @apply bg-white/60 backdrop-blur-md border border-white/20 dark:bg-black/40 dark:border-white/10 shadow-xl shadow-slate-200/50 dark:shadow-none rounded-2xl;
   }
 
   .prose-cg {
