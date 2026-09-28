@@ -1,11 +1,12 @@
 package com.codegrowth.backend.service;
 
+import com.codegrowth.backend.dto.EvaluationResponse;
 import com.codegrowth.backend.dto.GenerateRequest;
 import com.codegrowth.backend.dto.GenerateResponse;
-import com.codegrowth.backend.dto.EvaluationResponse;
 import com.codegrowth.backend.entity.AppUser;
-import com.codegrowth.backend.entity.Submission;
 import com.codegrowth.backend.entity.Assignment;
+import com.codegrowth.backend.entity.Submission;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -19,8 +20,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
-import java.util.Map;
 import java.util.HashMap;
+import java.util.HexFormat;
+import java.util.Map;
 
 @Service
 public class AiService {
@@ -48,7 +50,7 @@ public class AiService {
     public EvaluationResponse evaluateSubmission(Submission submission) {
         try {
             Assignment assignment = submission.getAssignment();
-            
+
             Map<String, Object> assignmentCtx = new HashMap<>();
             assignmentCtx.put("title", assignment.getTitle());
             assignmentCtx.put("description", assignment.getDescription());
@@ -56,7 +58,7 @@ public class AiService {
 
             Map<String, Object> context = new HashMap<>();
             context.put("assignment", assignmentCtx);
-            
+
             String content = submission.getContent().trim();
             if (content.startsWith("http")) {
                 context.put("repository_url", content);
@@ -88,16 +90,14 @@ public class AiService {
                 throw new IllegalStateException(
                         "AI engine returned HTTP " + response.statusCode() + ": " + response.body());
             }
-            
-            // The AI Engine returns {"status": "...", "result": { EvaluationResponse fields }}
-            Map<String, Object> responseMap = objectMapper.readValue(response.body(), Map.class);
-            if (!responseMap.containsKey("result")) {
+
+            JsonNode rootNode = objectMapper.readTree(response.body());
+            if (!rootNode.has("result")) {
                 throw new IllegalStateException("AI engine response missing 'result' field");
             }
-            
-            String resultJson = objectMapper.writeValueAsString(responseMap.get("result"));
-            return objectMapper.readValue(resultJson, EvaluationResponse.class);
-            
+
+            return objectMapper.treeToValue(rootNode.get("result"), EvaluationResponse.class);
+
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to communicate with AI engine", exception);
         } catch (InterruptedException exception) {
@@ -156,7 +156,7 @@ public class AiService {
             if (branch != null && !branch.isBlank()) {
                 payload.put("branch", branch);
             }
-            payload.put("max_files", 50); // limit to 50 files to avoid timeouts
+            payload.put("max_files", 50);
 
             String requestBody = objectMapper.writeValueAsString(payload);
             String runUrl = generateUrl.replace("/generate", "/repositories/analyze");
@@ -227,11 +227,7 @@ public class AiService {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(prompt.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hex = new StringBuilder();
-            for (byte value : hash) {
-                hex.append(String.format("%02x", value));
-            }
-            return "codegrowth:ai:generate:" + hex;
+            return "codegrowth:ai:generate:" + HexFormat.of().formatHex(hash);
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is not available", exception);
         }

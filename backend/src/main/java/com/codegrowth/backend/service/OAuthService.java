@@ -2,7 +2,6 @@ package com.codegrowth.backend.service;
 
 import com.codegrowth.backend.dto.AuthResponse;
 import com.codegrowth.backend.entity.AppUser;
-import com.codegrowth.backend.entity.Role;
 import com.codegrowth.backend.entity.StudentProfile;
 import com.codegrowth.backend.repository.AppUserRepository;
 import com.codegrowth.backend.repository.StudentProfileRepository;
@@ -19,6 +18,10 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class OAuthService {
@@ -120,7 +123,7 @@ public class OAuthService {
             String name = userInfo.has("name") ? userInfo.get("name").asText() : email;
             String avatar = userInfo.has("picture") ? userInfo.get("picture").asText() : null;
 
-            AppUser user = findOrCreateOAuthUser("GOOGLE", googleId, email, java.util.List.of(email), name, avatar, null);
+            AppUser user = findOrCreateOAuthUser("GOOGLE", googleId, email, List.of(email), name, avatar, null);
             return toResponse(user);
 
         } catch (IOException | InterruptedException e) {
@@ -155,7 +158,7 @@ public class OAuthService {
     public void linkGitHub(Long userId, String code) {
         try {
             String tokenBody = objectMapper.writeValueAsString(
-                    java.util.Map.of(
+                    Map.of(
                             "client_id", githubClientId,
                             "client_secret", githubClientSecret,
                             "code", code,
@@ -193,7 +196,7 @@ public class OAuthService {
         try {
             // Exchange code for token
             String tokenBody = objectMapper.writeValueAsString(
-                    java.util.Map.of(
+                    Map.of(
                             "client_id", githubClientId,
                             "client_secret", githubClientSecret,
                             "code", code,
@@ -236,7 +239,7 @@ public class OAuthService {
             String avatar = userInfo.has("avatar_url") ? userInfo.get("avatar_url").asText() : null;
 
             // Fetch all emails from GitHub (handles private and secondary emails)
-            java.util.List<String> emails = fetchAllGitHubEmails(accessToken);
+            List<String> emails = fetchAllGitHubEmails(accessToken);
             String primaryEmail = userInfo.has("email") && !userInfo.get("email").isNull()
                     ? userInfo.get("email").asText()
                     : (!emails.isEmpty() ? emails.get(0) : null);
@@ -254,7 +257,7 @@ public class OAuthService {
         }
     }
 
-    private java.util.List<String> fetchAllGitHubEmails(String accessToken) {
+    private List<String> fetchAllGitHubEmails(String accessToken) {
         try {
             HttpRequest emailRequest = HttpRequest.newBuilder()
                     .uri(URI.create("https://api.github.com/user/emails"))
@@ -267,7 +270,7 @@ public class OAuthService {
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
 
             JsonNode emails = objectMapper.readTree(emailResponse.body());
-            java.util.List<String> result = new java.util.ArrayList<>();
+            List<String> result = new ArrayList<>();
             if (emails.isArray()) {
                 for (JsonNode emailNode : emails) {
                     if (emailNode.has("email") && !emailNode.get("email").isNull()) {
@@ -282,7 +285,7 @@ public class OAuthService {
             }
             return result;
         } catch (Exception e) {
-            return java.util.List.of();
+            return List.of();
         }
     }
 
@@ -290,7 +293,7 @@ public class OAuthService {
     // Shared
     // ============================================================
 
-    private AppUser findOrCreateOAuthUser(String provider, String providerId, String primaryEmail, java.util.List<String> allEmails, String name, String avatarUrl, String accessToken) {
+    private AppUser findOrCreateOAuthUser(String provider, String providerId, String primaryEmail, List<String> allEmails, String name, String avatarUrl, String accessToken) {
         // Try to find by provider + ID first
         return userRepository.findByProviderAndProviderId(provider, providerId)
                 .map(existing -> {
@@ -304,7 +307,7 @@ public class OAuthService {
                     AppUser existingUser = null;
                     if (allEmails != null) {
                         for (String em : allEmails) {
-                            var found = userRepository.findByEmailIgnoreCase(em);
+                            Optional<AppUser> found = userRepository.findByEmailIgnoreCase(em);
                             if (found.isPresent()) {
                                 existingUser = found.get();
                                 break;

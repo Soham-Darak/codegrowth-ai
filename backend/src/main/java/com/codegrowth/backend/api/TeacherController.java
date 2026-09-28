@@ -1,87 +1,292 @@
 package com.codegrowth.backend.api;
 
-import com.codegrowth.backend.entity.*;
-import com.codegrowth.backend.repository.*;
+import com.codegrowth.backend.entity.Announcement;
+import com.codegrowth.backend.entity.AppUser;
+import com.codegrowth.backend.entity.Assignment;
+import com.codegrowth.backend.entity.ConnectedRepository;
+import com.codegrowth.backend.entity.Course;
+import com.codegrowth.backend.entity.Enrollment;
+import com.codegrowth.backend.entity.Submission;
+import com.codegrowth.backend.entity.TeacherProfile;
+import com.codegrowth.backend.repository.AnnouncementRepository;
+import com.codegrowth.backend.repository.AppUserRepository;
+import com.codegrowth.backend.repository.AssignmentRepository;
+import com.codegrowth.backend.repository.ConnectedRepositoryRepository;
+import com.codegrowth.backend.repository.CourseRepository;
+import com.codegrowth.backend.repository.EnrollmentRepository;
+import com.codegrowth.backend.repository.SubmissionRepository;
+import com.codegrowth.backend.repository.TeacherProfileRepository;
 import com.codegrowth.backend.service.AiService;
-import java.time.Instant;
-import java.util.*;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 @RestController
 @RequestMapping("/api/teacher")
 @PreAuthorize("hasRole('TEACHER')")
 public class TeacherController {
-    private final AppUserRepository users; private final TeacherProfileRepository profiles; private final CourseRepository courses;
-    private final EnrollmentRepository enrollments; private final AssignmentRepository assignments; private final SubmissionRepository submissions; private final AnnouncementRepository announcements;
-    private final AiService aiService; private final ConnectedRepositoryRepository connectedRepos;
-    public TeacherController(AppUserRepository users, TeacherProfileRepository profiles, CourseRepository courses, EnrollmentRepository enrollments,
-                             AssignmentRepository assignments, SubmissionRepository submissions, AnnouncementRepository announcements, AiService aiService, ConnectedRepositoryRepository connectedRepos) {
-        this.users=users; this.profiles=profiles; this.courses=courses; this.enrollments=enrollments; this.assignments=assignments; this.submissions=submissions; this.announcements=announcements; this.aiService=aiService; this.connectedRepos=connectedRepos;
+    private final AppUserRepository users;
+    private final TeacherProfileRepository profiles;
+    private final CourseRepository courses;
+    private final EnrollmentRepository enrollments;
+    private final AssignmentRepository assignments;
+    private final SubmissionRepository submissions;
+    private final AnnouncementRepository announcements;
+    private final AiService aiService;
+    private final ConnectedRepositoryRepository connectedRepos;
+
+    public TeacherController(
+            AppUserRepository users,
+            TeacherProfileRepository profiles,
+            CourseRepository courses,
+            EnrollmentRepository enrollments,
+            AssignmentRepository assignments,
+            SubmissionRepository submissions,
+            AnnouncementRepository announcements,
+            AiService aiService,
+            ConnectedRepositoryRepository connectedRepos) {
+        this.users = users;
+        this.profiles = profiles;
+        this.courses = courses;
+        this.enrollments = enrollments;
+        this.assignments = assignments;
+        this.submissions = submissions;
+        this.announcements = announcements;
+        this.aiService = aiService;
+        this.connectedRepos = connectedRepos;
     }
-    @GetMapping("/overview") public Map<String,Object> overview(Authentication a) { 
-        AppUser u=user(a); 
-        TeacherProfile p = profiles.findByUserId(u.getId()).orElseGet(() -> profiles.save(new TeacherProfile(u)));
-        List<Course> c=courses.findAllByTeacherIdOrderByCreatedAtDesc(u.getId()); 
-        int students=c.stream().map(x->enrollments.findAllByCourseIdOrderByEnrolledAtDesc(x.getId()).size()).reduce(0,Integer::sum); 
-        int asg=c.stream().map(x->assignments.findAllByCourseIdOrderByCreatedAtDesc(x.getId()).size()).reduce(0,Integer::sum); 
-        int subs=asg==0?0:(int)submissions.countByAssignmentCourseTeacherId(u.getId()); 
-        Map<String, Object> map = new HashMap<>();
-        map.put("profile", p);
-        map.put("courses", c.size());
-        map.put("students", students);
-        map.put("assignments", asg);
-        map.put("submissions", subs);
-        return map; 
+
+    @GetMapping("/overview")
+    public Map<String, Object> overview(Authentication authentication) {
+        AppUser currentUser = user(authentication);
+        TeacherProfile profile = profiles.findByUserId(currentUser.getId())
+                .orElseGet(() -> profiles.save(new TeacherProfile(currentUser)));
+        List<Course> teacherCourses = courses.findAllByTeacherIdOrderByCreatedAtDesc(currentUser.getId());
+        int studentsCount = teacherCourses.stream()
+                .map(c -> enrollments.findAllByCourseIdOrderByEnrolledAtDesc(c.getId()).size())
+                .reduce(0, Integer::sum);
+        int assignmentsCount = teacherCourses.stream()
+                .map(c -> assignments.findAllByCourseIdOrderByCreatedAtDesc(c.getId()).size())
+                .reduce(0, Integer::sum);
+        int submissionsCount = assignmentsCount == 0 ? 0 : (int) submissions.countByAssignmentCourseTeacherId(currentUser.getId());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("profile", profile);
+        response.put("courses", teacherCourses.size());
+        response.put("students", studentsCount);
+        response.put("assignments", assignmentsCount);
+        response.put("submissions", submissionsCount);
+        return response;
     }
-    @GetMapping("/profile") public TeacherProfile profile(Authentication a){ AppUser u = user(a); return profiles.findByUserId(u.getId()).orElseGet(() -> profiles.save(new TeacherProfile(u))); }
-    @PutMapping("/profile") public TeacherProfile updateProfile(Authentication a,@RequestBody Map<String,String>b){ AppUser u = user(a); TeacherProfile p=profiles.findByUserId(u.getId()).orElseGet(() -> new TeacherProfile(u)); p.update(b.get("department"),b.get("designation"),b.get("institution"),b.get("bio")); return profiles.save(p); }
-    @GetMapping("/courses") public List<Course> courses(Authentication a){ return courses.findAllByTeacherIdOrderByCreatedAtDesc(user(a).getId()); }
-    @PostMapping("/courses") public Course createCourse(Authentication a,@RequestBody Map<String,String>b){ return courses.save(new Course(b.getOrDefault("code","NEW"),b.getOrDefault("title","Untitled course"),b.get("description"),user(a))); }
-    @PutMapping("/courses/{id}") public Course updateCourse(Authentication a,@PathVariable Long id,@RequestBody Map<String,String>b){ Course c=courses.findByIdAndTeacherId(id,user(a).getId()).orElseThrow(); c.update(b.getOrDefault("code",c.getCode()),b.getOrDefault("title",c.getTitle()),b.getOrDefault("description",c.getDescription())); return courses.save(c); }
-    @DeleteMapping("/courses/{id}") public ResponseEntity<Void> deleteCourse(Authentication a,@PathVariable Long id){ courses.delete(courses.findByIdAndTeacherId(id,user(a).getId()).orElseThrow()); return ResponseEntity.noContent().build(); }
-    @GetMapping("/courses/{courseId}/students") public List<Enrollment> students(Authentication a,@PathVariable Long courseId){ courses.findByIdAndTeacherId(courseId,user(a).getId()).orElseThrow(); return enrollments.findAllByCourseIdOrderByEnrolledAtDesc(courseId); }
-    @GetMapping("/courses/{courseId}/assignments") public List<Assignment> assignments(Authentication a,@PathVariable Long courseId){ courses.findByIdAndTeacherId(courseId,user(a).getId()).orElseThrow(); return assignments.findAllByCourseIdOrderByCreatedAtDesc(courseId); }
-    @PostMapping("/courses/{courseId}/assignments") public Assignment createAssignment(Authentication a,@PathVariable Long courseId,@RequestBody Map<String,Object>b){ 
-        Course c=courses.findByIdAndTeacherId(courseId,user(a).getId()).orElseThrow(); 
-        Instant due=parseInstant(b.get("dueAt")); 
-        java.util.List<String> reqs = b.containsKey("requirements") && b.get("requirements") instanceof java.util.List ? (java.util.List<String>)b.get("requirements") : java.util.List.of(); 
-        return assignments.save(new Assignment(c,user(a),b.getOrDefault("title","Untitled assignment").toString(),b.get("description")!=null?b.get("description").toString():null,due,reqs)); 
+
+    @GetMapping("/profile")
+    public TeacherProfile profile(Authentication authentication) {
+        AppUser currentUser = user(authentication);
+        return profiles.findByUserId(currentUser.getId())
+                .orElseGet(() -> profiles.save(new TeacherProfile(currentUser)));
     }
-    @PutMapping("/assignments/{id}") public Assignment updateAssignment(Authentication a,@PathVariable Long id,@RequestBody Map<String,Object>b){ 
-        Assignment x=assignments.findByIdAndTeacherId(id,user(a).getId()).orElseThrow(); 
-        Instant due=b.containsKey("dueAt") ? parseInstant(b.get("dueAt")) : x.getDueAt(); 
-        java.util.List<String> reqs = b.containsKey("requirements") && b.get("requirements") instanceof java.util.List ? (java.util.List<String>)b.get("requirements") : x.getRequirements(); 
-        x.update(b.getOrDefault("title",x.getTitle()).toString(),b.getOrDefault("description",x.getDescription()).toString(),due,reqs); 
-        return assignments.save(x); 
+
+    @PutMapping("/profile")
+    public TeacherProfile updateProfile(Authentication authentication, @RequestBody Map<String, String> body) {
+        AppUser currentUser = user(authentication);
+        TeacherProfile profile = profiles.findByUserId(currentUser.getId())
+                .orElseGet(() -> new TeacherProfile(currentUser));
+        profile.update(
+                body.get("department"),
+                body.get("designation"),
+                body.get("institution"),
+                body.get("bio")
+        );
+        return profiles.save(profile);
     }
-    @DeleteMapping("/assignments/{id}") public ResponseEntity<Void> deleteAssignment(Authentication a,@PathVariable Long id){ assignments.delete(assignments.findByIdAndTeacherId(id,user(a).getId()).orElseThrow()); return ResponseEntity.noContent().build(); }
-    @GetMapping("/assignments/{id}/submissions") public List<Submission> assignmentSubmissions(Authentication a,@PathVariable Long id){ assignments.findByIdAndTeacherId(id,user(a).getId()).orElseThrow(); return submissions.findAllByAssignmentIdOrderBySubmittedAtDesc(id); }
-    @PatchMapping("/submissions/{id}/grade") public Submission grade(Authentication a,@PathVariable Long id,@RequestBody Map<String,Object>b){ Submission s=submissions.findById(id).orElseThrow(); assignments.findByIdAndTeacherId(s.getAssignment().getId(),user(a).getId()).orElseThrow(); Double score=b.get("score")==null?null:Double.valueOf(b.get("score").toString()); s.grade(score,b.get("feedback")==null?null:b.get("feedback").toString()); return submissions.save(s); }
-    @PostMapping(value = "/submissions/{id}/authenticity", produces = "application/json") public ResponseEntity<String> checkAuthenticity(Authentication a,@PathVariable Long id){ 
-        Submission s=submissions.findById(id).orElseThrow(); 
-        assignments.findByIdAndTeacherId(s.getAssignment().getId(),user(a).getId()).orElseThrow(); 
-        if(!s.getContent().startsWith("http")){ 
-            return ResponseEntity.badRequest().body("{\"error\":\"Submission must be a GitHub URL\"}"); 
-        } 
-        return ResponseEntity.ok(aiService.analyzeAuthenticity(s.getContent())); 
+
+    @GetMapping("/courses")
+    public List<Course> courses(Authentication authentication) {
+        return courses.findAllByTeacherIdOrderByCreatedAtDesc(user(authentication).getId());
     }
-    @GetMapping("/announcements") public List<Announcement> announcements(Authentication a){ return announcements.findAllByTeacherIdOrderByCreatedAtDesc(user(a).getId()); }
-    @PostMapping("/courses/{courseId}/announcements") public Announcement announcement(Authentication a,@PathVariable Long courseId,@RequestBody Map<String,String>b){ Course c=courses.findByIdAndTeacherId(courseId,user(a).getId()).orElseThrow(); return announcements.save(new Announcement(c,user(a),b.getOrDefault("title","Announcement"),b.getOrDefault("message",""))); }
-    @GetMapping("/all-repos") public List<ConnectedRepository> allRepos(Authentication a) { return connectedRepos.findAll(); }
-    
+
+    @PostMapping("/courses")
+    public Course createCourse(Authentication authentication, @RequestBody Map<String, String> body) {
+        return courses.save(new Course(
+                body.getOrDefault("code", "NEW"),
+                body.getOrDefault("title", "Untitled course"),
+                body.get("description"),
+                user(authentication)
+        ));
+    }
+
+    @PutMapping("/courses/{id}")
+    public Course updateCourse(
+            Authentication authentication,
+            @PathVariable("id") Long id,
+            @RequestBody Map<String, String> body) {
+        Course course = courses.findByIdAndTeacherId(id, user(authentication).getId()).orElseThrow();
+        course.update(
+                body.getOrDefault("code", course.getCode()),
+                body.getOrDefault("title", course.getTitle()),
+                body.getOrDefault("description", course.getDescription())
+        );
+        return courses.save(course);
+    }
+
+    @DeleteMapping("/courses/{id}")
+    public ResponseEntity<Void> deleteCourse(Authentication authentication, @PathVariable("id") Long id) {
+        Course course = courses.findByIdAndTeacherId(id, user(authentication).getId()).orElseThrow();
+        courses.delete(course);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/courses/{courseId}/students")
+    public List<Enrollment> students(Authentication authentication, @PathVariable("courseId") Long courseId) {
+        courses.findByIdAndTeacherId(courseId, user(authentication).getId()).orElseThrow();
+        return enrollments.findAllByCourseIdOrderByEnrolledAtDesc(courseId);
+    }
+
+    @GetMapping("/courses/{courseId}/assignments")
+    public List<Assignment> assignments(Authentication authentication, @PathVariable("courseId") Long courseId) {
+        courses.findByIdAndTeacherId(courseId, user(authentication).getId()).orElseThrow();
+        return assignments.findAllByCourseIdOrderByCreatedAtDesc(courseId);
+    }
+
+    @PostMapping("/courses/{courseId}/assignments")
+    public Assignment createAssignment(
+            Authentication authentication,
+            @PathVariable("courseId") Long courseId,
+            @RequestBody Map<String, Object> body) {
+        Course course = courses.findByIdAndTeacherId(courseId, user(authentication).getId()).orElseThrow();
+        Instant dueAt = parseInstant(body.get("dueAt"));
+        List<String> requirements = extractRequirements(body.get("requirements"));
+        String title = body.getOrDefault("title", "Untitled assignment").toString();
+        String description = body.get("description") != null ? body.get("description").toString() : null;
+
+        return assignments.save(new Assignment(course, user(authentication), title, description, dueAt, requirements));
+    }
+
+    @PutMapping("/assignments/{id}")
+    public Assignment updateAssignment(
+            Authentication authentication,
+            @PathVariable("id") Long id,
+            @RequestBody Map<String, Object> body) {
+        Assignment assignment = assignments.findByIdAndTeacherId(id, user(authentication).getId()).orElseThrow();
+        Instant dueAt = body.containsKey("dueAt") ? parseInstant(body.get("dueAt")) : assignment.getDueAt();
+        List<String> requirements = body.containsKey("requirements")
+                ? extractRequirements(body.get("requirements"))
+                : assignment.getRequirements();
+        String title = body.getOrDefault("title", assignment.getTitle()).toString();
+        String description = body.getOrDefault("description", assignment.getDescription()).toString();
+
+        assignment.update(title, description, dueAt, requirements);
+        return assignments.save(assignment);
+    }
+
+    @DeleteMapping("/assignments/{id}")
+    public ResponseEntity<Void> deleteAssignment(Authentication authentication, @PathVariable("id") Long id) {
+        Assignment assignment = assignments.findByIdAndTeacherId(id, user(authentication).getId()).orElseThrow();
+        assignments.delete(assignment);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/assignments/{id}/submissions")
+    public List<Submission> assignmentSubmissions(Authentication authentication, @PathVariable("id") Long id) {
+        assignments.findByIdAndTeacherId(id, user(authentication).getId()).orElseThrow();
+        return submissions.findAllByAssignmentIdOrderBySubmittedAtDesc(id);
+    }
+
+    @PatchMapping("/submissions/{id}/grade")
+    public Submission grade(
+            Authentication authentication,
+            @PathVariable("id") Long id,
+            @RequestBody Map<String, Object> body) {
+        Submission submission = submissions.findById(id).orElseThrow();
+        assignments.findByIdAndTeacherId(submission.getAssignment().getId(), user(authentication).getId()).orElseThrow();
+        Double score = body.get("score") == null ? null : Double.valueOf(body.get("score").toString());
+        String feedback = body.get("feedback") == null ? null : body.get("feedback").toString();
+
+        submission.grade(score, feedback);
+        return submissions.save(submission);
+    }
+
+    @PostMapping(value = "/submissions/{id}/authenticity", produces = "application/json")
+    public ResponseEntity<String> checkAuthenticity(Authentication authentication, @PathVariable("id") Long id) {
+        Submission submission = submissions.findById(id).orElseThrow();
+        assignments.findByIdAndTeacherId(submission.getAssignment().getId(), user(authentication).getId()).orElseThrow();
+        if (!submission.getContent().startsWith("http")) {
+            return ResponseEntity.badRequest().body("{\"error\":\"Submission must be a GitHub URL\"}");
+        }
+        return ResponseEntity.ok(aiService.analyzeAuthenticity(submission.getContent()));
+    }
+
+    @GetMapping("/announcements")
+    public List<Announcement> announcements(Authentication authentication) {
+        return announcements.findAllByTeacherIdOrderByCreatedAtDesc(user(authentication).getId());
+    }
+
+    @PostMapping("/courses/{courseId}/announcements")
+    public Announcement createAnnouncement(
+            Authentication authentication,
+            @PathVariable("courseId") Long courseId,
+            @RequestBody Map<String, String> body) {
+        Course course = courses.findByIdAndTeacherId(courseId, user(authentication).getId()).orElseThrow();
+        return announcements.save(new Announcement(
+                course,
+                user(authentication),
+                body.getOrDefault("title", "Announcement"),
+                body.getOrDefault("message", "")
+        ));
+    }
+
+    @GetMapping("/all-repos")
+    public List<ConnectedRepository> allRepos(Authentication authentication) {
+        return connectedRepos.findAll();
+    }
+
+    private static List<String> extractRequirements(Object reqObj) {
+        if (reqObj instanceof List<?> list) {
+            return list.stream()
+                    .filter(Objects::nonNull)
+                    .map(Object::toString)
+                    .toList();
+        }
+        return List.of();
+    }
+
     private static Instant parseInstant(Object val) {
-        if (val == null) return null;
+        if (val == null) {
+            return null;
+        }
         String text = val.toString().trim();
-        if (text.isBlank()) return null;
-        try { return Instant.parse(text); }
-        catch (Exception e) {
-            try { return java.time.LocalDate.parse(text).atStartOfDay(java.time.ZoneOffset.UTC).toInstant(); }
-            catch (Exception e2) { return null; }
+        if (text.isBlank()) {
+            return null;
+        }
+        try {
+            return Instant.parse(text);
+        } catch (Exception e) {
+            try {
+                return LocalDate.parse(text).atStartOfDay(ZoneOffset.UTC).toInstant();
+            } catch (Exception e2) {
+                return null;
+            }
         }
     }
 
-    private AppUser user(Authentication a){ return users.findByEmailIgnoreCase(a.getName()).orElseThrow(); }
+    private AppUser user(Authentication authentication) {
+        return users.findByEmailIgnoreCase(authentication.getName()).orElseThrow();
+    }
 }

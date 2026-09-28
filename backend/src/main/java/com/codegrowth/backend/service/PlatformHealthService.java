@@ -37,8 +37,11 @@ public class PlatformHealthService {
     }
 
     private String databaseStatus() {
-        try (Connection ignored = dataSource.getConnection()) { return "UP"; }
-        catch (Exception e) { return "DOWN"; }
+        try (Connection conn = dataSource.getConnection()) { 
+            return conn.isValid(2) ? "UP" : "DOWN"; 
+        } catch (Exception e) { 
+            return "DOWN"; 
+        }
     }
 
     private String redisStatus() {
