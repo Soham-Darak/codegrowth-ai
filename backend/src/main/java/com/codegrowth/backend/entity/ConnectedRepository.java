@@ -10,8 +10,7 @@ public class ConnectedRepository {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @JsonIgnore
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "student_id", nullable = false)
     private AppUser student;
 
@@ -40,6 +39,7 @@ public class ConnectedRepository {
 
     public Long getId() { return id; }
     public AppUser getStudent() { return student; }
+
     public String getRepositoryUrl() { return repositoryUrl; }
     public String getBranch() { return branch; }
     public String getName() { return name; }
@@ -50,3 +50,4 @@ public class ConnectedRepository {
     public void setLastAnalysisStatus(String lastAnalysisStatus) { this.lastAnalysisStatus = lastAnalysisStatus; }
     public void setLatestAnalysisJson(String latestAnalysisJson) { this.latestAnalysisJson = latestAnalysisJson; }
 }
+

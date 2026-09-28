@@ -42,8 +42,11 @@ public class PlatformHealthService {
     }
 
     private String redisStatus() {
-        try { return "PONG".equalsIgnoreCase(redis.getConnectionFactory().getConnection().ping()) ? "UP" : "DOWN"; }
-        catch (Exception e) { return "DOWN"; }
+        try (org.springframework.data.redis.connection.RedisConnection conn = redis.getConnectionFactory().getConnection()) { 
+            return "PONG".equalsIgnoreCase(conn.ping()) ? "UP" : "DOWN"; 
+        } catch (Exception e) { 
+            return "DOWN"; 
+        }
     }
 
     private String aiStatus() {

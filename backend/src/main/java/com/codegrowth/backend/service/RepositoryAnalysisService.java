@@ -17,22 +17,28 @@ public class RepositoryAnalysisService {
     }
 
     @Async
-    @Transactional
     public void analyzeRepositoryAsync(Long repositoryId) {
         try {
             ConnectedRepository repo = repositoryRepo.findById(repositoryId).orElseThrow();
             
+            // External call performed without holding open a database transaction
             String analysisJson = aiService.analyzeRepository(repo.getRepositoryUrl(), repo.getBranch());
             
-            repo.setLatestAnalysisJson(analysisJson);
-            repo.setLastAnalysisStatus("COMPLETED");
-            repositoryRepo.save(repo);
+            saveAnalysisResult(repositoryId, analysisJson, "COMPLETED");
         } catch (Exception e) {
             e.printStackTrace();
-            repositoryRepo.findById(repositoryId).ifPresent(repo -> {
-                repo.setLastAnalysisStatus("FAILED");
-                repositoryRepo.save(repo);
-            });
+            saveAnalysisResult(repositoryId, null, "FAILED");
         }
+    }
+
+    @Transactional
+    public void saveAnalysisResult(Long repositoryId, String analysisJson, String status) {
+        repositoryRepo.findById(repositoryId).ifPresent(repo -> {
+            if (analysisJson != null) {
+                repo.setLatestAnalysisJson(analysisJson);
+            }
+            repo.setLastAnalysisStatus(status);
+            repositoryRepo.save(repo);
+        });
     }
 }

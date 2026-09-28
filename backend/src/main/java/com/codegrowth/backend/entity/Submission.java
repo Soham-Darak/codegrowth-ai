@@ -26,5 +26,6 @@ public class Submission {
     public String getFeedback() { return feedback; }
     public Instant getSubmittedAt() { return submittedAt; }
     public Instant getGradedAt() { return gradedAt; }
+    public void updateContent(String newContent) { this.content = newContent; this.submittedAt = Instant.now(); }
     public void grade(Double score, String feedback) { this.score = score; this.feedback = feedback; this.gradedAt = Instant.now(); }
 }

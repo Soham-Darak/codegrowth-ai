@@ -23,7 +23,7 @@ public class Assignment {
     protected Assignment() {}
     public Assignment(Course course, AppUser teacher, String title, String description, Instant dueAt, java.util.List<String> requirements) {
         this.course = course; this.teacher = teacher; this.title = title; this.description = description; this.dueAt = dueAt; 
-        if (requirements != null) this.requirements = requirements;
+        if (requirements != null) this.requirements = new java.util.ArrayList<>(requirements);
         this.createdAt = Instant.now();
     }
     public Long getId() { return id; }
@@ -34,9 +34,11 @@ public class Assignment {
     public Instant getDueAt() { return dueAt; }
     public Instant getCreatedAt() { return createdAt; }
     public java.util.List<String> getRequirements() { return requirements; }
-    public void setRequirements(java.util.List<String> requirements) { this.requirements = requirements; }
+    public void setRequirements(java.util.List<String> requirements) { 
+        this.requirements = requirements != null ? new java.util.ArrayList<>(requirements) : new java.util.ArrayList<>(); 
+    }
     public void update(String title, String description, Instant dueAt, java.util.List<String> requirements) { 
         this.title = title; this.description = description; this.dueAt = dueAt; 
-        if (requirements != null) this.requirements = requirements;
+        if (requirements != null) this.requirements = new java.util.ArrayList<>(requirements);
     }
 }

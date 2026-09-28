@@ -1,7 +1,9 @@
 package com.codegrowth.backend.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record EvaluationResponse(
     Double correctness_score,
     Double code_quality_score,
@@ -16,6 +18,7 @@ public record EvaluationResponse(
     String feedback,
     List<String> improvement_suggestions
 ) {
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public record RequirementResultDto(
         String requirement,
         String status,

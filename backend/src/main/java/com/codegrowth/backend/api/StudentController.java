@@ -29,11 +29,19 @@ public class StudentController {
         this.repositoryAnalysisService = repositoryAnalysisService;
     }
     @GetMapping("/overview") public ResponseEntity<Map<String,Object>> overview(Authentication auth) {
-        AppUser u = user(auth); List<Enrollment> e = enrollments.findAllByStudentIdOrderByEnrolledAtDesc(u.getId());
-        return ResponseEntity.ok(Map.of("profile", profiles.findByUserId(u.getId()).orElse(null), "courses", e.size(), "assignments", e.stream().map(x -> assignments.findAllByCourseIdOrderByCreatedAtDesc(x.getCourse().getId()).size()).reduce(0, Integer::sum), "submissions", submissions.findAllByStudentIdOrderBySubmittedAtDesc(u.getId()).size(), "goals", goals.findAllByStudentIdOrderByCreatedAtDesc(u.getId()).size()));
+        AppUser u = user(auth); 
+        StudentProfile p = profiles.findByUserId(u.getId()).orElseGet(() -> profiles.save(new StudentProfile(u)));
+        List<Enrollment> e = enrollments.findAllByStudentIdOrderByEnrolledAtDesc(u.getId());
+        Map<String, Object> map = new HashMap<>();
+        map.put("profile", p);
+        map.put("courses", e.size());
+        map.put("assignments", e.stream().map(x -> assignments.findAllByCourseIdOrderByCreatedAtDesc(x.getCourse().getId()).size()).reduce(0, Integer::sum));
+        map.put("submissions", submissions.findAllByStudentIdOrderBySubmittedAtDesc(u.getId()).size());
+        map.put("goals", goals.findAllByStudentIdOrderByCreatedAtDesc(u.getId()).size());
+        return ResponseEntity.ok(map);
     }
-    @GetMapping("/profile") public StudentProfile profile(Authentication a) { return profiles.findByUserId(user(a).getId()).orElseThrow(); }
-    @PutMapping("/profile") public StudentProfile updateProfile(Authentication a, @RequestBody Map<String,String> b) { StudentProfile p = profiles.findByUserId(user(a).getId()).orElseThrow(); p.update(b.get("university"), b.get("branch"), b.get("academicYear"), b.get("targetRole"), b.get("bio")); return profiles.save(p); }
+    @GetMapping("/profile") public StudentProfile profile(Authentication a) { AppUser u = user(a); return profiles.findByUserId(u.getId()).orElseGet(() -> profiles.save(new StudentProfile(u))); }
+    @PutMapping("/profile") public StudentProfile updateProfile(Authentication a, @RequestBody Map<String,String> b) { AppUser u = user(a); StudentProfile p = profiles.findByUserId(u.getId()).orElseGet(() -> new StudentProfile(u)); p.update(b.get("university"), b.get("branch"), b.get("academicYear"), b.get("targetRole"), b.get("bio")); return profiles.save(p); }
     @GetMapping("/courses") public List<Course> courses() { return courses.findAll(); }
     @GetMapping("/courses/enrolled") public List<Enrollment> enrolled(Authentication a) { return enrollments.findAllByStudentIdOrderByEnrolledAtDesc(user(a).getId()); }
     @PostMapping("/courses/{courseId}/enroll") public Enrollment enroll(Authentication a, @PathVariable Long courseId) { AppUser u = user(a); Course c = courses.findById(courseId).orElseThrow(); return enrollments.findByStudentIdAndCourseId(u.getId(), courseId).orElseGet(() -> enrollments.save(new Enrollment(u, c))); }
@@ -43,12 +51,18 @@ public class StudentController {
     @PostMapping("/assignments/{assignmentId}/submit") public Submission submit(Authentication a, @PathVariable Long assignmentId, @RequestBody Map<String,String> body) {
         AppUser u = user(a); Assignment x = assignments.findById(assignmentId).orElseThrow();
         enrollments.findByStudentIdAndCourseId(u.getId(), x.getCourse().getId()).orElseThrow(() -> new IllegalArgumentException("Enroll in the course before submitting"));
-        Submission s = submissions.findByAssignmentIdAndStudentId(assignmentId, u.getId()).orElseGet(() -> new Submission(x, u, body.getOrDefault("content", "")));
+        String newContent = body.getOrDefault("content", "").trim();
+        Submission s = submissions.findByAssignmentIdAndStudentId(assignmentId, u.getId())
+                .map(existing -> {
+                    existing.updateContent(newContent);
+                    return existing;
+                })
+                .orElseGet(() -> new Submission(x, u, newContent));
         boolean isNew = s.getId() == null;
         s = submissions.save(s);
         
         if (isNew || Boolean.parseBoolean(body.getOrDefault("forceEvaluate", "false"))) {
-            aiEvaluationService.evaluateSubmissionAsync(s.getId());
+            aiEvaluationService.evaluateSubmissionAsync(s.getId(), true);
         }
         
         return s;
@@ -63,8 +77,8 @@ public class StudentController {
     }
 
     @GetMapping("/goals") public List<LearningGoal> goals(Authentication a) { return goals.findAllByStudentIdOrderByCreatedAtDesc(user(a).getId()); }
-    @PostMapping("/goals") public LearningGoal createGoal(Authentication a, @RequestBody Map<String,String> b) { Instant target = b.get("targetDate") == null || b.get("targetDate").isBlank() ? null : Instant.parse(b.get("targetDate")); return goals.save(new LearningGoal(user(a), b.getOrDefault("title", "Untitled goal"), b.get("description"), target)); }
-    @PutMapping("/goals/{id}") public LearningGoal updateGoal(Authentication a, @PathVariable Long id, @RequestBody Map<String,String> b) { LearningGoal g = goals.findByIdAndStudentId(id, user(a).getId()).orElseThrow(); Instant target = b.get("targetDate") == null || b.get("targetDate").isBlank() ? null : Instant.parse(b.get("targetDate")); int progress = b.get("progress") == null ? g.getProgress() : Integer.parseInt(b.get("progress")); g.update(b.getOrDefault("title", g.getTitle()), b.getOrDefault("description", g.getDescription()), target, progress, b.getOrDefault("status", g.getStatus())); return goals.save(g); }
+    @PostMapping("/goals") public LearningGoal createGoal(Authentication a, @RequestBody Map<String,String> b) { Instant target = parseInstant(b.get("targetDate")); return goals.save(new LearningGoal(user(a), b.getOrDefault("title", "Untitled goal"), b.get("description"), target)); }
+    @PutMapping("/goals/{id}") public LearningGoal updateGoal(Authentication a, @PathVariable Long id, @RequestBody Map<String,String> b) { LearningGoal g = goals.findByIdAndStudentId(id, user(a).getId()).orElseThrow(); Instant target = parseInstant(b.get("targetDate")); int progress = b.get("progress") == null ? g.getProgress() : Integer.parseInt(b.get("progress")); g.update(b.getOrDefault("title", g.getTitle()), b.getOrDefault("description", g.getDescription()), target, progress, b.getOrDefault("status", g.getStatus())); return goals.save(g); }
 
     @GetMapping("/repositories")
     public List<ConnectedRepository> getRepositories(Authentication auth) {
@@ -82,16 +96,25 @@ public class StudentController {
     @GetMapping("/repositories/{id}")
     public ConnectedRepository getRepository(Authentication auth, @PathVariable Long id) {
         ConnectedRepository repo = connectedRepos.findById(id).orElseThrow();
-        if (!repo.getStudent().getId().equals(user(auth).getId())) throw new IllegalArgumentException("Forbidden");
+        if (!repo.getStudent().getId().equals(user(auth).getId())) throw new org.springframework.security.access.AccessDeniedException("Forbidden");
         return repo;
     }
 
     @DeleteMapping("/repositories/{id}")
     public void deleteRepository(Authentication auth, @PathVariable Long id) {
         ConnectedRepository repo = connectedRepos.findById(id).orElseThrow();
-        if (!repo.getStudent().getId().equals(user(auth).getId())) throw new IllegalArgumentException("Forbidden");
+        if (!repo.getStudent().getId().equals(user(auth).getId())) throw new org.springframework.security.access.AccessDeniedException("Forbidden");
         connectedRepos.delete(repo);
     }
     
+    private static Instant parseInstant(String text) {
+        if (text == null || text.isBlank()) return null;
+        try { return Instant.parse(text); }
+        catch (Exception e) {
+            try { return java.time.LocalDate.parse(text).atStartOfDay(java.time.ZoneOffset.UTC).toInstant(); }
+            catch (Exception e2) { return null; }
+        }
+    }
+
     private AppUser user(Authentication a) { return users.findByEmailIgnoreCase(a.getName()).orElseThrow(); }
 }

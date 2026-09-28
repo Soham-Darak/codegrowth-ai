@@ -26,11 +26,15 @@ public class AiEvaluationService {
     }
 
     @Async
-    @Transactional
     public void evaluateSubmissionAsync(Long submissionId) {
+        evaluateSubmissionAsync(submissionId, false);
+    }
+
+    @Async
+    public void evaluateSubmissionAsync(Long submissionId, boolean force) {
         try {
             Submission submission = submissionRepository.findById(submissionId).orElseThrow();
-            evaluateSubmission(submission);
+            evaluateSubmission(submission, force);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -40,15 +44,33 @@ public class AiEvaluationService {
         return evaluationRepository.findBySubmission(submission);
     }
 
-    @Transactional
     public AiEvaluation evaluateSubmission(Submission submission) {
-        // Prevent duplicate evaluations
+        return evaluateSubmission(submission, false);
+    }
+
+    public AiEvaluation evaluateSubmission(Submission submission, boolean force) {
+        // Prevent duplicate evaluations unless force is requested
         Optional<AiEvaluation> existing = evaluationRepository.findBySubmission(submission);
-        if (existing.isPresent()) {
+        if (existing.isPresent() && !force) {
             return existing.get();
         }
 
+        // Perform external AI engine call OUTSIDE the database transaction
+        // to prevent holding a database connection and exhausting HikariCP
         EvaluationResponse response = aiService.evaluateSubmission(submission);
+
+        return persistEvaluation(submission.getId(), response);
+    }
+
+    @Transactional
+    public AiEvaluation persistEvaluation(Long submissionId, EvaluationResponse response) {
+        Submission submission = submissionRepository.findById(submissionId).orElseThrow();
+
+        // If an existing evaluation exists, remove it first
+        evaluationRepository.findBySubmission(submission).ifPresent(old -> {
+            evaluationRepository.delete(old);
+            evaluationRepository.flush();
+        });
 
         AiEvaluation evaluation = new AiEvaluation(
                 submission,

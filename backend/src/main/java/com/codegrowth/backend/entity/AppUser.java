@@ -26,6 +26,7 @@ public class AppUser {
     @Column(nullable = false, unique = true, length = 150)
     private String email;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @Column(length = 100)
     private String password;
 
@@ -45,6 +46,7 @@ public class AppUser {
     @Column(length = 500)
     private String avatarUrl;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @Column(length = 255)
     private String githubAccessToken;
 

@@ -15,10 +15,18 @@ public class CacheService {
     }
 
     public String get(String key) {
-        return redisTemplate.opsForValue().get(key);
+        try {
+            return redisTemplate.opsForValue().get(key);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public void set(String key, String value) {
-        redisTemplate.opsForValue().set(key, value, TTL);
+        try {
+            redisTemplate.opsForValue().set(key, value, TTL);
+        } catch (Exception e) {
+            // Ignore cache write failure
+        }
     }
 }
