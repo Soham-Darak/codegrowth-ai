@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, BookOpen, Bot, CheckCircle2, ClipboardList, History, Target, Users, Wrench, Layers } from "lucide-react";
+import { ArrowRight, BookOpen, Bot, CheckCircle2, ClipboardList, History, Target, Users, Wrench, Layers, LucideIcon } from "lucide-react";
 import { apiGet, handleAuthError } from "@/lib/api";
 import AppShell from "@/components/workspace/AppShell";
 
@@ -12,18 +12,18 @@ const ROLE_INFO = {
   ADMIN: { title: "Platform control center", subtitle: "Monitor users, learning activity and platform services." },
 };
 
-function Stat({ label, value, icon: Icon }) {
+function Stat({ label, value, icon: Icon }: { label: string, value: number | string | null, icon: LucideIcon }) {
   return <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.035]"><div className="flex items-center justify-between"><span className="text-xs font-medium text-slate-500">{label}</span><Icon size={17} className="text-slate-400" /></div><div className="mt-3 text-3xl font-semibold tracking-tight">{value ?? 0}</div></div>;
 }
 
-function QuickLink({ href, icon: Icon, title, description }) {
+function QuickLink({ href, icon: Icon, title, description }: { href: string, icon: LucideIcon, title: string, description: string }) {
   return <Link href={href} className="group rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md dark:border-white/10 dark:bg-white/[0.035] dark:hover:border-white/20"><div className="flex items-start justify-between"><div className="grid size-10 place-items-center rounded-xl bg-slate-100 dark:bg-white/[0.05]"><Icon size={18} /></div><ArrowRight size={16} className="text-slate-400 transition group-hover:translate-x-1" /></div><div className="mt-4 text-sm font-semibold">{title}</div><p className="mt-1 text-xs leading-5 text-slate-500">{description}</p></Link>;
 }
 
-export default function RoleDashboard({ role }) {
-  const [data, setData] = useState(null);
-  const [history, setHistory] = useState([]);
-  const [goals, setGoals] = useState([]);
+export default function RoleDashboard({ role }: { role: "STUDENT" | "TEACHER" | "ADMIN" }) {
+  const [data, setData] = useState<any>(null);
+  const [history, setHistory] = useState<any[]>([]);
+  const [goals, setGoals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -38,8 +38,8 @@ export default function RoleDashboard({ role }) {
           if (active) { setHistory(historyData || []); setGoals(goalsData || []); }
         }
         if (active) setData(result);
-      } catch (e) {
-        if (!handleAuthError(e, window.next?.router)) setError(e.message);
+      } catch (e: any) {
+        if (!handleAuthError(e)) setError(e.message);
       } finally { if (active) setLoading(false); }
     }
     load();
@@ -55,7 +55,7 @@ export default function RoleDashboard({ role }) {
 
   return <AppShell role={role} title={info.title} subtitle={info.subtitle}>
     {error && <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-400/15 dark:bg-red-500/5 dark:text-red-300">{error}</div>}
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{stats.map(([label, value, Icon]) => <Stat key={label} label={label} value={loading ? "…" : value} icon={Icon} />)}</div>
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{stats.map(([label, value, Icon]: any) => <Stat key={label} label={label} value={loading ? "…" : value} icon={Icon} />)}</div>
 
     {role === "STUDENT" && <>
       <div className="mt-6 grid gap-4 xl:grid-cols-[1.15fr_.85fr]">

@@ -6,7 +6,7 @@ import { apiGet } from "@/lib/api";
 import { Layers, Search, RefreshCw, CheckCircle2, AlertCircle, ExternalLink, Code2 } from "lucide-react";
 
 export default function TeacherReposPage() {
-  const [repos, setRepos] = useState([]);
+  const [repos, setRepos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -96,7 +96,7 @@ export default function TeacherReposPage() {
               try {
                 analysis = JSON.parse(repo.latestAnalysisJson);
                 if (analysis.result) analysis = analysis.result;
-              } catch (e) {}
+              } catch (e: any) {}
             }
 
             const overallScore = analysis?.analysis?.overall_score;

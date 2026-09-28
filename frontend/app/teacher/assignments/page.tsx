@@ -5,13 +5,13 @@ import AppShell from "@/components/workspace/AppShell";
 import { apiGet, apiPost } from "@/lib/api";
 
 export default function TeacherAssignments() {
-  const [courses, setCourses] = useState([]);
+  const [courses, setCourses] = useState<any[]>([]);
   const [selected, setSelected] = useState("");
-  const [assignments, setAssignments] = useState([]);
+  const [assignments, setAssignments] = useState<any[]>([]);
   const [form, setForm] = useState({ title: "", description: "", dueAt: "" });
   const [error, setError] = useState("");
-  const [submissions, setSubmissions] = useState(null);
-  const [authenticityResults, setAuthenticityResults] = useState({});
+  const [submissions, setSubmissions] = useState<any>(null);
+  const [authenticityResults, setAuthenticityResults] = useState<any>({});
   const [loadingAuth, setLoadingAuth] = useState(false);
 
   useEffect(() => {
@@ -20,7 +20,7 @@ export default function TeacherAssignments() {
         const c = await apiGet("/api/teacher/courses");
         setCourses(c || []);
         setSelected(new URLSearchParams(window.location.search).get("course") || c?.[0]?.id || "");
-      } catch (e) {
+      } catch (e: any) {
         setError(e.message);
       }
     })();
@@ -31,7 +31,7 @@ export default function TeacherAssignments() {
     (async () => {
       try {
         setAssignments((await apiGet(`/api/teacher/courses/${selected}/assignments`)) || []);
-      } catch (e) {
+      } catch (e: any) {
         setError(e.message);
       }
     })();
@@ -44,15 +44,15 @@ export default function TeacherAssignments() {
       await apiPost(`/api/teacher/courses/${selected}/assignments`, form);
       setForm({ title: "", description: "", dueAt: "" });
       setAssignments((await apiGet(`/api/teacher/courses/${selected}/assignments`)) || []);
-    } catch (e) {
+    } catch (e: any) {
       setError(e.message);
     }
   }
 
-  async function review(id) {
+  async function review(id: any) {
     try {
       setSubmissions(await apiGet(`/api/teacher/assignments/${id}/submissions`));
-    } catch (e) {
+    } catch (e: any) {
       setError(e.message);
     }
   }
@@ -67,7 +67,7 @@ export default function TeacherAssignments() {
           [submissionId]: res.analysis,
         }));
       }
-    } catch (e) {
+    } catch (e: any) {
       setError("Authenticity check failed: " + e.message);
     } finally {
       setLoadingAuth(false);
@@ -79,7 +79,7 @@ export default function TeacherAssignments() {
       <div className="grid gap-5 lg:grid-cols-[.7fr_1.3fr]">
         <form onSubmit={create} className="rounded-2xl border bg-white p-6 dark:border-white/10 dark:bg-white/[0.035]">
           <h2 className="font-semibold">Create assignment</h2>
-          <select value={selected} onChange={(e) => setSelected(e.target.value)} className="mt-4 w-full rounded-xl border p-3 text-sm dark:border-white/10 dark:bg-[#071018]">
+          <select value={selected} onChange={(e: any) => setSelected(e.target.value)} className="mt-4 w-full rounded-xl border p-3 text-sm dark:border-white/10 dark:bg-[#071018]">
             <option value="">Select course</option>
             {courses.map((c) => (
               <option value={c.id} key={c.id}>
@@ -87,13 +87,13 @@ export default function TeacherAssignments() {
               </option>
             ))}
           </select>
-          <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="mt-3 w-full rounded-xl border p-3 text-sm dark:border-white/10 dark:bg-[#071018]" placeholder="Assignment title" required />
-          <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="mt-3 min-h-28 w-full rounded-xl border p-3 text-sm dark:border-white/10 dark:bg-[#071018]" placeholder="Instructions" />
-          <input type="datetime-local" value={form.dueAt ? form.dueAt.slice(0, 16) : ""} onChange={(e) => setForm({ ...form, dueAt: e.target.value ? `${e.target.value}:00Z` : "" })} className="mt-3 w-full rounded-xl border p-3 text-sm dark:border-white/10 dark:bg-[#071018]" />
+          <input value={form.title} onChange={(e: any) => setForm({ ...form, title: e.target.value })} className="mt-3 w-full rounded-xl border p-3 text-sm dark:border-white/10 dark:bg-[#071018]" placeholder="Assignment title" required />
+          <textarea value={form.description} onChange={(e: any) => setForm({ ...form, description: e.target.value })} className="mt-3 min-h-28 w-full rounded-xl border p-3 text-sm dark:border-white/10 dark:bg-[#071018]" placeholder="Instructions" />
+          <input type="datetime-local" value={form.dueAt ? form.dueAt.slice(0, 16) : ""} onChange={(e: any) => setForm({ ...form, dueAt: e.target.value ? `${e.target.value}:00Z` : "" })} className="mt-3 w-full rounded-xl border p-3 text-sm dark:border-white/10 dark:bg-[#071018]" />
           <button className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white dark:bg-white dark:text-slate-900">Create assignment</button>
         </form>
         <div className="space-y-3">
-          {assignments.map((a) => (
+          {assignments.map((a: any) => (
             <article key={a.id} className="rounded-2xl border bg-white p-5 dark:border-white/10 dark:bg-white/[0.035]">
               <div className="flex items-start justify-between">
                 <div>

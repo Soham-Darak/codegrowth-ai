@@ -6,8 +6,8 @@ import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { Layers, Loader2, GitMerge, AlertCircle, CheckCircle2, RefreshCw, Github } from "lucide-react";
 
 export default function Repositories() {
-    const [repos, setRepos] = useState([]);
-    const [githubRepos, setGithubRepos] = useState([]);
+    const [repos, setRepos] = useState<any[]>([]);
+    const [githubRepos, setGithubRepos] = useState<any[]>([]);
     const [githubStatus, setGithubStatus] = useState({ connected: false, linkUrl: "" });
     const [loading, setLoading] = useState(true);
     const [loadingGithub, setLoadingGithub] = useState(true);
@@ -29,7 +29,7 @@ export default function Repositories() {
             } else {
                 setLoadingGithub(false);
             }
-        } catch (e) {
+        } catch (e: any) {
             console.log("Could not check GitHub status");
             setLoadingGithub(false);
         }
@@ -39,7 +39,7 @@ export default function Repositories() {
         try {
             const data = await apiGet("/api/github/my-repos");
             if (Array.isArray(data)) setGithubRepos(data);
-        } catch (e) {
+        } catch (e: any) {
             console.log("Not logged in with GitHub or no token");
         } finally {
             setLoadingGithub(false);
@@ -50,7 +50,7 @@ export default function Repositories() {
         try {
             const data = await apiGet("/api/student/repositories");
             setRepos(data);
-        } catch (e) {
+        } catch (e: any) {
             setError(e.message);
         } finally {
             setLoading(false);
@@ -73,7 +73,7 @@ export default function Repositories() {
         }
     }
 
-    async function deleteRepo(id) {
+    async function deleteRepo(id: any) {
         try {
             await apiDelete(`/api/student/repositories/${id}`);
             fetchRepos();
@@ -199,7 +199,7 @@ function RepositoryCard({ repo, onDelete, onRefresh }) {
             analysis = JSON.parse(repo.latestAnalysisJson);
             // In case the AI Engine wrapped it in {"status":"...","result":{...}}
             if (analysis.result) analysis = analysis.result;
-        } catch (e) {}
+        } catch (e: any) {}
     }
 
     return (

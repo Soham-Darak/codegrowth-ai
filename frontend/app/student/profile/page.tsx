@@ -36,7 +36,7 @@ export default function StudentProfile() {
           });
         }
         if (gh) setGithubStatus(gh);
-      } catch (e) {
+      } catch (e: any) {
         setError(e.message);
       } finally {
         setLoading(false);
@@ -54,7 +54,7 @@ export default function StudentProfile() {
       await apiPut("/api/student/profile", form);
       setSuccess("Profile saved successfully.");
       setTimeout(() => setSuccess(""), 4000);
-    } catch (e) {
+    } catch (e: any) {
       setError(e.message);
     } finally {
       setSaving(false);

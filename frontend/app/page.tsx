@@ -8,8 +8,9 @@ import {
   ArrowRight, Code2, GitBranch, Shield, Sparkles, BarChart3, Target,
   FileSearch, Zap, Brain, TrendingUp, GraduationCap, Users, ChevronRight
 } from "lucide-react";
+import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 
-function rolePath(role) {
+function rolePath(role: string) {
   const value = (role || "STUDENT").toUpperCase();
   return value === "ADMIN" ? "/admin" : value === "TEACHER" ? "/teacher" : "/student";
 }
@@ -17,41 +18,41 @@ function rolePath(role) {
 const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
 const stagger = { visible: { transition: { staggerChildren: 0.1 } } };
 
-function FeatureCard({ icon: Icon, title, description, gradient }) {
+function FeatureCard({ icon: Icon, title, description, gradient }: { icon: any, title: string, description: string, gradient: string }) {
   return (
     <motion.div
       variants={fadeUp}
-      className="group relative overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02] p-7 transition-all duration-300 hover:border-white/[0.12] hover:bg-white/[0.04] hover:shadow-xl hover:shadow-indigo-950/20"
+      className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white/50 p-7 shadow-sm transition-all duration-300 hover:border-slate-300 hover:bg-white hover:shadow-xl hover:shadow-indigo-900/5 dark:border-white/[0.06] dark:bg-white/[0.02] dark:hover:border-white/[0.12] dark:hover:bg-white/[0.04] dark:hover:shadow-indigo-950/20"
     >
       <div className={`inline-flex rounded-xl p-2.5 ${gradient}`}>
         <Icon size={20} className="text-white" />
       </div>
       <h3 className="mt-5 text-base font-semibold tracking-tight">{title}</h3>
-      <p className="mt-2 text-sm leading-6 text-slate-400">{description}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">{description}</p>
       <div className="absolute bottom-0 left-0 h-px w-0 bg-gradient-to-r from-indigo-500/50 to-cyan-500/50 transition-all duration-500 group-hover:w-full" />
     </motion.div>
   );
 }
 
-function StepCard({ number, title, description }) {
+function StepCard({ number, title, description }: { number: number, title: string, description: string }) {
   return (
     <motion.div variants={fadeUp} className="relative flex gap-5">
       <div className="flex flex-col items-center">
-        <div className="grid size-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-sm font-bold">{number}</div>
+        <div className="grid size-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-sm font-bold text-white shadow-md">{number}</div>
         {number < 4 && <div className="mt-2 h-full w-px bg-gradient-to-b from-indigo-500/30 to-transparent" />}
       </div>
       <div className="pb-10">
         <h3 className="text-base font-semibold">{title}</h3>
-        <p className="mt-1.5 text-sm leading-6 text-slate-400">{description}</p>
+        <p className="mt-1.5 text-sm leading-6 text-slate-600 dark:text-slate-400">{description}</p>
       </div>
     </motion.div>
   );
 }
 
-function StatBadge({ value, label }) {
+function StatBadge({ value, label }: { value: string, label: string }) {
   return (
     <div className="text-center">
-      <div className="text-3xl font-bold tracking-tight bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">{value}</div>
+      <div className="text-3xl font-bold tracking-tight bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent dark:from-white dark:to-slate-300">{value}</div>
       <div className="mt-1 text-xs text-slate-500">{label}</div>
     </div>
   );
@@ -71,7 +72,8 @@ export default function LandingPage() {
 
   function goToDashboard() {
     try {
-      const user = JSON.parse(localStorage.getItem("codegrowth_user"));
+      const rawUser = localStorage.getItem("codegrowth_user");
+      const user = rawUser ? JSON.parse(rawUser) : null;
       router.push(rolePath(user?.role));
     } catch {
       router.push("/login");
@@ -79,30 +81,31 @@ export default function LandingPage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#04070f] text-slate-100">
+    <main className="relative min-h-screen overflow-hidden bg-slate-50 text-slate-900 transition-colors duration-300 dark:bg-[#04070f] dark:text-slate-100">
       {/* Background effects */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-0 h-[600px] w-[900px] -translate-x-1/2 rounded-full bg-gradient-to-b from-indigo-600/[0.07] via-violet-600/[0.04] to-transparent blur-3xl" />
-        <div className="absolute right-0 top-1/3 h-[400px] w-[400px] rounded-full bg-cyan-600/[0.04] blur-3xl" />
+        <div className="absolute left-1/2 top-0 h-[600px] w-[900px] -translate-x-1/2 rounded-full bg-gradient-to-b from-indigo-500/[0.05] via-violet-500/[0.03] to-transparent blur-3xl dark:from-indigo-600/[0.07] dark:via-violet-600/[0.04]" />
+        <div className="absolute right-0 top-1/3 h-[400px] w-[400px] rounded-full bg-cyan-500/[0.03] blur-3xl dark:bg-cyan-600/[0.04]" />
       </div>
 
       {/* Navigation */}
       <nav className="relative z-20 mx-auto flex max-w-7xl items-center justify-between px-6 py-6 lg:px-10">
         <div className="flex items-center gap-3">
-          <div className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-indigo-500/20 to-violet-500/20 ring-1 ring-white/10">
-            <Code2 size={17} className="text-cyan-300" />
+          <div className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-indigo-500/10 to-violet-500/10 ring-1 ring-slate-200 dark:from-indigo-500/20 dark:to-violet-500/20 dark:ring-white/10">
+            <Code2 size={17} className="text-indigo-600 dark:text-cyan-300" />
           </div>
           <span className="text-sm font-semibold tracking-tight">CodeGrowth AI</span>
         </div>
         <div className="flex items-center gap-3">
+          <ThemeSwitcher />
           {isLoggedIn ? (
-            <button onClick={goToDashboard} className="flex items-center gap-2 rounded-xl bg-white/[0.08] px-4 py-2.5 text-sm font-medium transition hover:bg-white/[0.14]">
+            <button onClick={goToDashboard} className="flex items-center gap-2 rounded-xl bg-slate-200/50 px-4 py-2.5 text-sm font-medium transition hover:bg-slate-200 dark:bg-white/[0.08] dark:hover:bg-white/[0.14]">
               Dashboard <ArrowRight size={14} />
             </button>
           ) : (
             <>
-              <Link href="/login" className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:text-white">Sign in</Link>
-              <Link href="/register" className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 px-5 py-2.5 text-sm font-semibold transition hover:brightness-110">
+              <Link href="/login" className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Sign in</Link>
+              <Link href="/register" className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110">
                 Get Started <ArrowRight size={14} />
               </Link>
             </>
@@ -113,22 +116,22 @@ export default function LandingPage() {
       {/* Hero */}
       <section className="relative z-10 mx-auto max-w-7xl px-6 pb-20 pt-16 lg:px-10 lg:pt-24">
         <motion.div initial="hidden" animate="visible" variants={stagger} className="text-center">
-          <motion.div variants={fadeUp} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5 text-xs font-medium text-indigo-200 backdrop-blur">
-            <Sparkles size={13} className="text-indigo-400" />
+          <motion.div variants={fadeUp} className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-4 py-1.5 text-xs font-medium text-indigo-700 backdrop-blur dark:border-white/10 dark:bg-white/[0.04] dark:text-indigo-200">
+            <Sparkles size={13} className="text-indigo-500 dark:text-indigo-400" />
             AI-powered developer growth platform
           </motion.div>
           <motion.h1 variants={fadeUp} className="mx-auto mt-8 max-w-4xl text-5xl font-bold leading-[1.08] tracking-[-0.03em] lg:text-7xl">
             Turn every commit into a
-            <span className="bg-gradient-to-r from-indigo-300 via-violet-300 to-cyan-300 bg-clip-text text-transparent"> growth milestone</span>
+            <span className="bg-gradient-to-r from-indigo-600 via-violet-600 to-cyan-500 bg-clip-text text-transparent dark:from-indigo-300 dark:via-violet-300 dark:to-cyan-300"> growth milestone</span>
           </motion.h1>
-          <motion.p variants={fadeUp} className="mx-auto mt-6 max-w-2xl text-base leading-7 text-slate-400 lg:text-lg">
+          <motion.p variants={fadeUp} className="mx-auto mt-6 max-w-2xl text-base leading-7 text-slate-600 lg:text-lg dark:text-slate-400">
             CodeGrowth AI analyzes your repositories, evaluates your code, identifies weaknesses, and builds a personalized roadmap to make you a measurably better developer.
           </motion.p>
           <motion.div variants={fadeUp} className="mt-10 flex flex-wrap items-center justify-center gap-4">
-            <Link href="/register" className="group flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 px-7 py-3.5 text-sm font-semibold shadow-lg shadow-indigo-500/25 transition hover:shadow-xl hover:shadow-indigo-500/30 hover:brightness-110">
+            <Link href="/register" className="group flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:shadow-xl hover:shadow-indigo-500/30 hover:brightness-110">
               Start Growing <ArrowRight size={15} className="transition group-hover:translate-x-0.5" />
             </Link>
-            <Link href="/login" className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-7 py-3.5 text-sm font-medium transition hover:bg-white/[0.08]">
+            <Link href="/login" className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-7 py-3.5 text-sm font-medium transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:hover:bg-white/[0.08]">
               Sign in
             </Link>
           </motion.div>
@@ -139,12 +142,12 @@ export default function LandingPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="mx-auto mt-20 flex max-w-2xl items-center justify-around rounded-2xl border border-white/[0.06] bg-white/[0.02] px-8 py-6 backdrop-blur"
+          className="mx-auto mt-20 flex max-w-2xl items-center justify-around rounded-2xl border border-slate-200 bg-white/60 px-8 py-6 shadow-xl shadow-slate-200/50 backdrop-blur dark:border-white/[0.06] dark:bg-white/[0.02] dark:shadow-none"
         >
           <StatBadge value="6" label="Analysis Dimensions" />
-          <div className="h-8 w-px bg-white/10" />
+          <div className="h-8 w-px bg-slate-200 dark:bg-white/10" />
           <StatBadge value="3" label="Agent System" />
-          <div className="h-8 w-px bg-white/10" />
+          <div className="h-8 w-px bg-slate-200 dark:bg-white/10" />
           <StatBadge value="∞" label="Growth Potential" />
         </motion.div>
       </section>
@@ -191,31 +194,31 @@ export default function LandingPage() {
             <h2 className="mt-4 text-3xl font-bold tracking-tight lg:text-4xl">One platform, three experiences</h2>
           </motion.div>
           <div className="grid gap-5 md:grid-cols-3">
-            <motion.div variants={fadeUp} className="rounded-2xl border border-white/[0.06] bg-gradient-to-b from-violet-500/[0.06] to-transparent p-8">
-              <GraduationCap size={24} className="text-violet-300" />
+            <motion.div variants={fadeUp} className="rounded-2xl border border-slate-200 bg-gradient-to-b from-violet-50 to-transparent p-8 dark:border-white/[0.06] dark:from-violet-500/[0.06]">
+              <GraduationCap size={24} className="text-violet-500 dark:text-violet-300" />
               <h3 className="mt-5 text-lg font-semibold">Students</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-400">Analyze your projects, understand weaknesses, track improvement, and build real evidence of your growth as a developer.</p>
-              <ul className="mt-5 space-y-2 text-sm text-slate-400">
+              <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">Analyze your projects, understand weaknesses, track improvement, and build real evidence of your growth as a developer.</p>
+              <ul className="mt-5 space-y-2 text-sm text-slate-600 dark:text-slate-400">
                 <li className="flex items-center gap-2"><ChevronRight size={14} className="text-violet-400" /> Personal growth dashboard</li>
                 <li className="flex items-center gap-2"><ChevronRight size={14} className="text-violet-400" /> AI code analysis</li>
                 <li className="flex items-center gap-2"><ChevronRight size={14} className="text-violet-400" /> Learning roadmap</li>
               </ul>
             </motion.div>
-            <motion.div variants={fadeUp} className="rounded-2xl border border-white/[0.06] bg-gradient-to-b from-cyan-500/[0.06] to-transparent p-8">
-              <Users size={24} className="text-cyan-300" />
+            <motion.div variants={fadeUp} className="rounded-2xl border border-slate-200 bg-gradient-to-b from-cyan-50 to-transparent p-8 dark:border-white/[0.06] dark:from-cyan-500/[0.06]">
+              <Users size={24} className="text-cyan-500 dark:text-cyan-300" />
               <h3 className="mt-5 text-lg font-semibold">Educators</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-400">Create assignments with specific requirements. AI evaluates every submission automatically, freeing you to focus on teaching.</p>
-              <ul className="mt-5 space-y-2 text-sm text-slate-400">
+              <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">Create assignments with specific requirements. AI evaluates every submission automatically, freeing you to focus on teaching.</p>
+              <ul className="mt-5 space-y-2 text-sm text-slate-600 dark:text-slate-400">
                 <li className="flex items-center gap-2"><ChevronRight size={14} className="text-cyan-400" /> Automated evaluation</li>
                 <li className="flex items-center gap-2"><ChevronRight size={14} className="text-cyan-400" /> Class analytics</li>
                 <li className="flex items-center gap-2"><ChevronRight size={14} className="text-cyan-400" /> Submission tracking</li>
               </ul>
             </motion.div>
-            <motion.div variants={fadeUp} className="rounded-2xl border border-white/[0.06] bg-gradient-to-b from-amber-500/[0.06] to-transparent p-8">
-              <Shield size={24} className="text-amber-300" />
+            <motion.div variants={fadeUp} className="rounded-2xl border border-slate-200 bg-gradient-to-b from-amber-50 to-transparent p-8 dark:border-white/[0.06] dark:from-amber-500/[0.06]">
+              <Shield size={24} className="text-amber-500 dark:text-amber-300" />
               <h3 className="mt-5 text-lg font-semibold">Administrators</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-400">Monitor platform health, manage users, track adoption metrics, and ensure the system runs smoothly for everyone.</p>
-              <ul className="mt-5 space-y-2 text-sm text-slate-400">
+              <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">Monitor platform health, manage users, track adoption metrics, and ensure the system runs smoothly for everyone.</p>
+              <ul className="mt-5 space-y-2 text-sm text-slate-600 dark:text-slate-400">
                 <li className="flex items-center gap-2"><ChevronRight size={14} className="text-amber-400" /> Platform monitoring</li>
                 <li className="flex items-center gap-2"><ChevronRight size={14} className="text-amber-400" /> User management</li>
                 <li className="flex items-center gap-2"><ChevronRight size={14} className="text-amber-400" /> System health</li>
@@ -247,10 +250,10 @@ export default function LandingPage() {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="rounded-3xl border border-white/[0.06] bg-gradient-to-br from-indigo-500/[0.08] via-violet-500/[0.05] to-cyan-500/[0.08] p-12 text-center lg:p-16"
+          className="rounded-3xl border border-slate-200 bg-gradient-to-br from-indigo-50 via-violet-50 to-cyan-50 p-12 text-center shadow-xl shadow-slate-200/50 dark:border-white/[0.06] dark:from-indigo-500/[0.08] dark:via-violet-500/[0.05] dark:to-cyan-500/[0.08] dark:shadow-none lg:p-16"
         >
           <h2 className="text-3xl font-bold tracking-tight lg:text-4xl">Ready to measure your growth?</h2>
-          <p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-slate-400">Stop guessing. Start growing. Connect a repository and get your first analysis in minutes.</p>
+          <p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-slate-600 dark:text-slate-400">Stop guessing. Start growing. Connect a repository and get your first analysis in minutes.</p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
             <Link href="/register" className="group flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 px-8 py-3.5 text-sm font-semibold shadow-lg shadow-indigo-500/25 transition hover:shadow-xl hover:brightness-110">
               Create Free Account <ArrowRight size={15} className="transition group-hover:translate-x-0.5" />
@@ -260,10 +263,10 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="relative z-10 border-t border-white/[0.06] py-10">
+      <footer className="relative z-10 border-t border-slate-200 py-10 dark:border-white/[0.06]">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 lg:px-10">
           <div className="flex items-center gap-2 text-sm text-slate-500">
-            <Code2 size={15} className="text-cyan-400" />
+            <Code2 size={15} className="text-indigo-500 dark:text-cyan-400" />
             CodeGrowth AI
           </div>
           <div className="text-xs text-slate-600">© {new Date().getFullYear()} CodeGrowth AI. Built for developers who never stop learning.</div>

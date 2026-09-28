@@ -1,4 +1,4 @@
-export async function apiFetch(path, options = {}) {
+export async function apiFetch(path: string, options: any = {}) {
   const token = typeof window !== "undefined" ? localStorage.getItem("codegrowth_token") : null;
   const headers = new Headers(options.headers || {});
   headers.set("Accept", "application/json");
@@ -14,20 +14,20 @@ export async function apiFetch(path, options = {}) {
     const message = typeof data === "object" && data
       ? data.message || data.detail || data.error || `Request failed with ${response.status}`
       : data || `Request failed with ${response.status}`;
-    const error = new Error(message);
+    const error: any = new Error(message);
     error.status = response.status;
     throw error;
   }
   return data;
 }
 
-export const apiGet = (path) => apiFetch(path);
-export const apiPost = (path, body) => apiFetch(path, { method: "POST", body: JSON.stringify(body) });
-export const apiPut = (path, body) => apiFetch(path, { method: "PUT", body: JSON.stringify(body) });
-export const apiPatch = (path, body) => apiFetch(path, { method: "PATCH", body: JSON.stringify(body) });
-export const apiDelete = (path) => apiFetch(path, { method: "DELETE" });
+export const apiGet = (path: string) => apiFetch(path);
+export const apiPost = (path: string, body: any) => apiFetch(path, { method: "POST", body: JSON.stringify(body) });
+export const apiPut = (path: string, body: any) => apiFetch(path, { method: "PUT", body: JSON.stringify(body) });
+export const apiPatch = (path: string, body: any) => apiFetch(path, { method: "PATCH", body: JSON.stringify(body) });
+export const apiDelete = (path: string) => apiFetch(path, { method: "DELETE" });
 
-export function handleAuthError(error) {
+export function handleAuthError(error: any) {
   if (error?.status === 401 || error?.status === 403) {
     if (typeof window !== "undefined") {
       localStorage.removeItem("codegrowth_token");

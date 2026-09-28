@@ -320,6 +320,11 @@ The landing page is a **premium, immersive experience** featuring:
 - Feature highlights with animated icons
 - Dark theme with glassmorphism effects
 
+### UI & Theming
+
+- **100% TypeScript**: The entire frontend is strictly typed using TypeScript for enhanced developer experience and error prevention.
+- **Dynamic Theming System**: A comprehensive dark/light mode engine powered by `next-themes` and Tailwind v4 CSS variables. It seamlessly adapts the user interface, gradients, and glassmorphism elements to the user's system preferences.
+
 ### Authentication
 
 | Method | Flow |
