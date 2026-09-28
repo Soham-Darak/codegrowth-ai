@@ -120,7 +120,7 @@ public class OAuthService {
             String name = userInfo.has("name") ? userInfo.get("name").asText() : email;
             String avatar = userInfo.has("picture") ? userInfo.get("picture").asText() : null;
 
-            AppUser user = findOrCreateOAuthUser("GOOGLE", googleId, email, name, avatar);
+            AppUser user = findOrCreateOAuthUser("GOOGLE", googleId, email, java.util.List.of(email), name, avatar, null);
             return toResponse(user);
 
         } catch (IOException | InterruptedException e) {
@@ -137,7 +137,56 @@ public class OAuthService {
         return "https://github.com/login/oauth/authorize"
                 + "?client_id=" + encode(githubClientId)
                 + "&redirect_uri=" + encode(githubRedirectUri)
-                + "&scope=" + encode("read:user user:email");
+                + "&scope=" + encode("read:user user:email repo");
+    }
+
+    public String getGitHubLinkUrl() {
+        return "https://github.com/login/oauth/authorize"
+                + "?client_id=" + encode(githubClientId)
+                + "&redirect_uri=" + encode(githubRedirectUri)
+                + "&state=link"
+                + "&scope=" + encode("read:user user:email repo");
+    }
+
+    /**
+     * Link GitHub to an already-authenticated user.
+     * Exchanges the GitHub code for a token and saves it on the existing user row.
+     */
+    public void linkGitHub(Long userId, String code) {
+        try {
+            String tokenBody = objectMapper.writeValueAsString(
+                    java.util.Map.of(
+                            "client_id", githubClientId,
+                            "client_secret", githubClientSecret,
+                            "code", code,
+                            "redirect_uri", githubRedirectUri
+                    )
+            );
+
+            HttpRequest tokenRequest = HttpRequest.newBuilder()
+                    .uri(URI.create("https://github.com/login/oauth/access_token"))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(tokenBody))
+                    .build();
+
+            HttpResponse<String> tokenResponse = httpClient.send(tokenRequest,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+
+            JsonNode tokenData = objectMapper.readTree(tokenResponse.body());
+            if (tokenData.has("error")) {
+                throw new IllegalStateException("GitHub token exchange failed: " + tokenData.get("error_description").asText());
+            }
+            String accessToken = tokenData.get("access_token").asText();
+
+            AppUser user = userRepository.findById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
+            user.setGithubAccessToken(accessToken);
+            userRepository.save(user);
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            throw new IllegalStateException("GitHub link failed", e);
+        }
     }
 
     public AuthResponse handleGitHubCallback(String code) {
@@ -186,16 +235,17 @@ public class OAuthService {
                     : userInfo.get("login").asText();
             String avatar = userInfo.has("avatar_url") ? userInfo.get("avatar_url").asText() : null;
 
-            // Fetch email (may be private)
-            String email = userInfo.has("email") && !userInfo.get("email").isNull()
+            // Fetch all emails from GitHub (handles private and secondary emails)
+            java.util.List<String> emails = fetchAllGitHubEmails(accessToken);
+            String primaryEmail = userInfo.has("email") && !userInfo.get("email").isNull()
                     ? userInfo.get("email").asText()
-                    : fetchGitHubEmail(accessToken);
+                    : (!emails.isEmpty() ? emails.get(0) : null);
 
-            if (email == null || email.isBlank()) {
-                throw new IllegalStateException("GitHub account has no public email. Please make your email visible in GitHub settings.");
+            if (primaryEmail == null || primaryEmail.isBlank()) {
+                throw new IllegalStateException("GitHub account has no public or verified email.");
             }
 
-            AppUser user = findOrCreateOAuthUser("GITHUB", githubId, email, name, avatar);
+            AppUser user = findOrCreateOAuthUser("GITHUB", githubId, primaryEmail, emails, name, avatar, accessToken);
             return toResponse(user);
 
         } catch (IOException | InterruptedException e) {
@@ -204,51 +254,77 @@ public class OAuthService {
         }
     }
 
-    private String fetchGitHubEmail(String accessToken) throws IOException, InterruptedException {
-        HttpRequest emailRequest = HttpRequest.newBuilder()
-                .uri(URI.create("https://api.github.com/user/emails"))
-                .header("Authorization", "Bearer " + accessToken)
-                .header("Accept", "application/json")
-                .GET()
-                .build();
+    private java.util.List<String> fetchAllGitHubEmails(String accessToken) {
+        try {
+            HttpRequest emailRequest = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.github.com/user/emails"))
+                    .header("Authorization", "Bearer " + accessToken)
+                    .header("Accept", "application/json")
+                    .GET()
+                    .build();
 
-        HttpResponse<String> emailResponse = httpClient.send(emailRequest,
-                HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            HttpResponse<String> emailResponse = httpClient.send(emailRequest,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
 
-        JsonNode emails = objectMapper.readTree(emailResponse.body());
-        if (emails.isArray()) {
-            for (JsonNode emailNode : emails) {
-                if (emailNode.has("primary") && emailNode.get("primary").asBoolean()) {
-                    return emailNode.get("email").asText();
+            JsonNode emails = objectMapper.readTree(emailResponse.body());
+            java.util.List<String> result = new java.util.ArrayList<>();
+            if (emails.isArray()) {
+                for (JsonNode emailNode : emails) {
+                    if (emailNode.has("email") && !emailNode.get("email").isNull()) {
+                        String em = emailNode.get("email").asText();
+                        if (emailNode.has("primary") && emailNode.get("primary").asBoolean()) {
+                            result.add(0, em);
+                        } else {
+                            result.add(em);
+                        }
+                    }
                 }
             }
-            if (!emails.isEmpty()) {
-                return emails.get(0).get("email").asText();
-            }
+            return result;
+        } catch (Exception e) {
+            return java.util.List.of();
         }
-        return null;
     }
 
     // ============================================================
     // Shared
     // ============================================================
 
-    private AppUser findOrCreateOAuthUser(String provider, String providerId, String email, String name, String avatarUrl) {
+    private AppUser findOrCreateOAuthUser(String provider, String providerId, String primaryEmail, java.util.List<String> allEmails, String name, String avatarUrl, String accessToken) {
         // Try to find by provider + ID first
         return userRepository.findByProviderAndProviderId(provider, providerId)
                 .map(existing -> {
-                    // Update profile info if changed
                     if (name != null && !name.equals(existing.getName())) existing.setName(name);
                     if (avatarUrl != null && !avatarUrl.equals(existing.getAvatarUrl())) existing.setAvatarUrl(avatarUrl);
+                    if (accessToken != null) existing.setGithubAccessToken(accessToken);
                     return userRepository.save(existing);
                 })
                 .orElseGet(() -> {
-                    // Check if email already exists (different provider)
-                    if (userRepository.existsByEmailIgnoreCase(email)) {
-                        throw new IllegalArgumentException(
-                                "An account with this email already exists. Please log in with your original method.");
+                    // Check if ANY email matches an existing user (e.g. registered with Google or Email/Password)
+                    AppUser existingUser = null;
+                    if (allEmails != null) {
+                        for (String em : allEmails) {
+                            var found = userRepository.findByEmailIgnoreCase(em);
+                            if (found.isPresent()) {
+                                existingUser = found.get();
+                                break;
+                            }
+                        }
                     }
-                    AppUser newUser = new AppUser(name, email, provider, providerId, avatarUrl);
+                    if (existingUser == null && primaryEmail != null) {
+                        existingUser = userRepository.findByEmailIgnoreCase(primaryEmail).orElse(null);
+                    }
+
+                    if (existingUser != null) {
+                        // Link accounts seamlessly
+                        if (name != null && existingUser.getName() == null) existingUser.setName(name);
+                        if (avatarUrl != null && existingUser.getAvatarUrl() == null) existingUser.setAvatarUrl(avatarUrl);
+                        if (accessToken != null) existingUser.setGithubAccessToken(accessToken);
+                        return userRepository.save(existingUser);
+                    }
+
+                    AppUser newUser = new AppUser(name, primaryEmail, provider, providerId, avatarUrl);
+                    if (accessToken != null) newUser.setGithubAccessToken(accessToken);
                     newUser = userRepository.save(newUser);
                     studentProfileRepository.save(new StudentProfile(newUser));
                     return newUser;
@@ -263,7 +339,8 @@ public class OAuthService {
                 user.getRole().name(),
                 jwtService.generateToken(user.getId(), user.getEmail(), user.getRole()),
                 user.getAvatarUrl(),
-                user.getProvider() != null ? user.getProvider() : "LOCAL"
+                user.getProvider() != null ? user.getProvider() : "LOCAL",
+                user.getGithubAccessToken() != null && !user.getGithubAccessToken().isBlank()
         );
     }
 

@@ -18,6 +18,38 @@ function GitHubCallbackInner() {
 
     async function handleCallback() {
       try {
+        const state = searchParams.get("state");
+        if (state === "link") {
+          const token = localStorage.getItem("codegrowth_token");
+          if (!token) {
+            setError("You must be logged in first. Redirecting to login...");
+            setTimeout(() => router.push("/login"), 2000);
+            return;
+          }
+
+          const response = await fetch("/api/backend/api/github/link", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`,
+            },
+            body: JSON.stringify({ code }),
+          });
+
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || data.message || "GitHub linking failed");
+
+          const userStr = localStorage.getItem("codegrowth_user");
+          if (userStr) {
+            const user = JSON.parse(userStr);
+            user.githubConnected = true;
+            localStorage.setItem("codegrowth_user", JSON.stringify(user));
+          }
+
+          router.push("/student/repositories");
+          return;
+        }
+
         const response = await fetch("/api/backend/api/auth/oauth/github/callback", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -27,7 +59,13 @@ function GitHubCallbackInner() {
         const data = text ? JSON.parse(text) : {};
         if (!response.ok) throw new Error(data.message || data.error || "GitHub login failed");
 
-        const user = { userId: data.userId, name: data.name, email: data.email, role: data.role || "STUDENT" };
+        const user = { 
+          userId: data.userId, 
+          name: data.name, 
+          email: data.email, 
+          role: data.role || "STUDENT",
+          githubConnected: !!data.githubConnected 
+        };
         localStorage.setItem("codegrowth_token", data.token);
         localStorage.setItem("codegrowth_user", JSON.stringify(user));
 

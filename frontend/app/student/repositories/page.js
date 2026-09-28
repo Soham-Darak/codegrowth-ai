@@ -3,18 +3,48 @@
 import { useEffect, useState } from "react";
 import AppShell from "@/components/workspace/AppShell";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
-import { Layers, Loader2, GitMerge, AlertCircle, CheckCircle2, RefreshCw } from "lucide-react";
+import { Layers, Loader2, GitMerge, AlertCircle, CheckCircle2, RefreshCw, Github } from "lucide-react";
 
 export default function Repositories() {
     const [repos, setRepos] = useState([]);
+    const [githubRepos, setGithubRepos] = useState([]);
+    const [githubStatus, setGithubStatus] = useState({ connected: false, linkUrl: "" });
     const [loading, setLoading] = useState(true);
+    const [loadingGithub, setLoadingGithub] = useState(true);
     const [form, setForm] = useState({ repositoryUrl: "", branch: "main", name: "" });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState("");
 
     useEffect(() => {
         fetchRepos();
+        checkGithubStatus();
     }, []);
+
+    async function checkGithubStatus() {
+        try {
+            const status = await apiGet("/api/github/status");
+            setGithubStatus(status);
+            if (status.connected) {
+                fetchGithubRepos();
+            } else {
+                setLoadingGithub(false);
+            }
+        } catch (e) {
+            console.log("Could not check GitHub status");
+            setLoadingGithub(false);
+        }
+    }
+
+    async function fetchGithubRepos() {
+        try {
+            const data = await apiGet("/api/github/my-repos");
+            if (Array.isArray(data)) setGithubRepos(data);
+        } catch (e) {
+            console.log("Not logged in with GitHub or no token");
+        } finally {
+            setLoadingGithub(false);
+        }
+    }
 
     async function fetchRepos() {
         try {
@@ -53,14 +83,75 @@ export default function Repositories() {
     }
 
     return (
-        <AppShell role="STUDENT" title="Connected Repositories" subtitle="Connect your GitHub repositories to track your code quality and growth metrics.">
+        <AppShell role="STUDENT" title="See Your Repos" subtitle="Browse your GitHub repositories, connect them, and track your code growth metrics.">
+            {/* GitHub Connection Banner */}
+            {!loadingGithub && !githubStatus.connected && (
+                <div className="mb-6 flex items-center justify-between rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-50 to-violet-50 p-5 dark:border-indigo-400/20 dark:from-indigo-500/10 dark:to-violet-500/10">
+                    <div className="flex items-center gap-4">
+                        <div className="grid size-12 place-items-center rounded-xl bg-[#24292e] text-white">
+                            <Github className="h-6 w-6" />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Connect your GitHub account</h3>
+                            <p className="mt-0.5 text-xs text-slate-500">Link GitHub to browse and connect your repositories instantly.</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => {
+                            if (githubStatus.linkUrl) window.location.href = githubStatus.linkUrl;
+                        }}
+                        className="flex items-center gap-2 rounded-xl bg-[#24292e] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-[#1a1f25]"
+                    >
+                        <Github className="h-4 w-4" />
+                        Connect GitHub
+                    </button>
+                </div>
+            )}
+
+            {!loadingGithub && githubStatus.connected && (
+                <div className="mb-6 flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 dark:border-emerald-400/20 dark:bg-emerald-500/10">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">GitHub connected — select from your repos below or enter a URL manually.</span>
+                </div>
+            )}
+
             <div className="grid gap-6 md:grid-cols-[300px_1fr]">
                 <div>
                     <div className="rounded-2xl border bg-white p-5 dark:border-white/10 dark:bg-white/[0.035]">
                         <h2 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                             <Layers className="h-4 w-4" /> Connect Repository
                         </h2>
-                        <form onSubmit={onSubmit} className="flex flex-col gap-3">
+
+                        {githubStatus.connected && githubRepos.length > 0 ? (
+                            <div className="flex flex-col gap-3">
+                                <label className="block text-xs font-medium text-slate-500">Select your GitHub Repository</label>
+                                <div className="max-h-64 overflow-y-auto rounded-xl border dark:border-white/10">
+                                    {githubRepos.map(r => (
+                                        <button 
+                                            key={r.id}
+                                            onClick={() => {
+                                                setForm({ repositoryUrl: r.html_url, branch: r.default_branch || "main", name: r.name });
+                                            }}
+                                            className="w-full border-b p-3 text-left last:border-0 hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
+                                        >
+                                            <div className="font-medium text-sm text-slate-900 dark:text-white">{r.name}</div>
+                                            <div className="text-xs text-slate-500">{r.full_name}</div>
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="mt-2 text-xs text-slate-400">Or manually enter below:</div>
+                            </div>
+                        ) : githubStatus.connected && loadingGithub ? (
+                            <div className="mb-4 flex items-center gap-2 rounded-xl bg-slate-50 p-3 text-xs text-slate-500 dark:bg-white/5">
+                                <Loader2 className="h-3 w-3 animate-spin" /> Loading your GitHub repos…
+                            </div>
+                        ) : !githubStatus.connected ? (
+                            <div className="mb-4 rounded-xl bg-slate-50 p-4 text-xs text-slate-500 dark:bg-white/5 flex flex-col gap-3 items-start">
+                                <p>Connect your GitHub account above to browse and select repos easily.</p>
+                            </div>
+                        ) : null}
+
+                        <form onSubmit={onSubmit} className="flex flex-col gap-3 mt-2">
                             <div>
                                 <label className="mb-1 block text-xs font-medium text-slate-500">Repository Name</label>
                                 <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full rounded-xl border p-2.5 text-sm dark:border-white/10 dark:bg-[#071018]" placeholder="e.g. Portfolio Website" />

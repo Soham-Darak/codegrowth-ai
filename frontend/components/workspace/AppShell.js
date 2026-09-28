@@ -4,12 +4,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
-import { Activity, BookOpen, Bot, ClipboardList, GraduationCap, History, LayoutDashboard, LogOut, Megaphone, Settings2, ShieldCheck, Sparkles, UserRound, Users, Wrench } from "lucide-react";
+import { Activity, BookOpen, Bot, ClipboardList, GraduationCap, History, LayoutDashboard, LogOut, Megaphone, Settings2, ShieldCheck, Sparkles, UserRound, Users, Wrench, Layers } from "lucide-react";
 import CodeGrowthScene from "@/components/visuals/CodeGrowthScene";
 
 const CONFIG = {
-  STUDENT: { label:"Student", description:"Learn, practice and build", tone:"violet", links:[["Overview","/student",LayoutDashboard],["AI Mentor","/student/ai",Sparkles],["Courses","/student/courses",BookOpen],["Assignments","/student/assignments",ClipboardList],["Goals","/student/goals",Activity],["History","/student/history",History],["Profile","/student/profile",UserRound]] },
-  TEACHER: { label:"Teacher", description:"Teach, guide and analyze", tone:"cyan", links:[["Overview","/teacher",LayoutDashboard],["My Classes","/teacher/classes",Users],["Assignments","/teacher/assignments",ClipboardList],["Announcements","/teacher/announcements",Megaphone],["AI Tools","/teacher/ai",Sparkles],["Analytics","/teacher/analytics",Activity],["Profile","/teacher/profile",UserRound]] },
+  STUDENT: { label:"Student", description:"Learn, practice and build", tone:"violet", links:[["Overview","/student",LayoutDashboard],["AI Mentor","/student/ai",Sparkles],["Courses","/student/courses",BookOpen],["Assignments","/student/assignments",ClipboardList],["See Your Repos","/student/repositories",Layers],["Goals","/student/goals",Activity],["History","/student/history",History],["Profile","/student/profile",UserRound]] },
+  TEACHER: { label:"Teacher", description:"Teach, guide and analyze", tone:"cyan", links:[["Overview","/teacher",LayoutDashboard],["My Classes","/teacher/classes",Users],["Student Repos","/teacher/repositories",Layers],["Assignments","/teacher/assignments",ClipboardList],["Announcements","/teacher/announcements",Megaphone],["AI Tools","/teacher/ai",Sparkles],["Analytics","/teacher/analytics",Activity],["Profile","/teacher/profile",UserRound]] },
   ADMIN: { label:"Admin", description:"Manage the learning platform", tone:"amber", links:[["Overview","/admin",LayoutDashboard],["Users","/admin/users",Users],["Courses","/admin/courses",BookOpen],["Analytics","/admin/analytics",Activity],["AI Control","/admin/ai",Bot],["System","/admin/system",Wrench],["Account","/admin/account",Settings2]] },
 };
 const toneClass={violet:"from-violet-500 to-cyan-400 text-violet-200",cyan:"from-cyan-400 to-emerald-400 text-cyan-200",amber:"from-amber-300 to-fuchsia-400 text-amber-200"};

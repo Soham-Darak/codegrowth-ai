@@ -12,6 +12,8 @@ dist/
 # Java / Spring Boot
 target/
 *.class
+*local.properties
+application-local.properties
 
 # Python
 .venv/

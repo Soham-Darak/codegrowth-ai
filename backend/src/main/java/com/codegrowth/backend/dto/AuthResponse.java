@@ -7,6 +7,7 @@ public record AuthResponse(
         String role,
         String token,
         String avatarUrl,
-        String provider
+        String provider,
+        boolean githubConnected
 ) {
 }

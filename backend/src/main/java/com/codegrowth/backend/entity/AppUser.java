@@ -45,6 +45,9 @@ public class AppUser {
     @Column(length = 500)
     private String avatarUrl;
 
+    @Column(length = 255)
+    private String githubAccessToken;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -90,6 +93,7 @@ public class AppUser {
     public String getProvider() { return provider; }
     public String getProviderId() { return providerId; }
     public String getAvatarUrl() { return avatarUrl; }
+    public String getGithubAccessToken() { return githubAccessToken; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 
@@ -97,5 +101,7 @@ public class AppUser {
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
     public void setName(String name) { this.name = name; this.updatedAt = Instant.now(); }
     public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; this.updatedAt = Instant.now(); }
+    public void setGithubAccessToken(String githubAccessToken) { this.githubAccessToken = githubAccessToken; this.updatedAt = Instant.now(); }
 }
+
 
