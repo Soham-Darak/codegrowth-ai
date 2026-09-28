@@ -37,7 +37,12 @@ __pycache__/
 GSD-STYLE.md
 PROJECT_RULES.md
 PROJECT_AUDIT.md
+PROJECT_STATUS.md
+IMPLEMENTATION_PLAN.md
 VERSION
 model_capabilities.yaml
 adapters/
 scripts/
+docs/
+tests/
+infrastructure/
