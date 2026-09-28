@@ -2,7 +2,7 @@
 
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Float, Sparkles } from "@react-three/drei";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 function Orb() {
   const mesh = useRef(null);
@@ -24,6 +24,10 @@ function Orb() {
 }
 
 export default function CodeGrowthBackdrop() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+
   return (
     <div className="pointer-events-none fixed inset-0 -z-10 opacity-90" aria-hidden="true">
       <Canvas camera={{ position: [0, 0, 6], fov: 45 }} dpr={[1, 1.5]}>

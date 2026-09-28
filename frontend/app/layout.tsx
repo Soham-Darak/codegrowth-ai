@@ -1,8 +1,6 @@
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import dynamic from "next/dynamic";
-
-const CodeGrowthBackdrop = dynamic(() => import("./components/CodeGrowthBackdrop"), { ssr: false });
+import CodeGrowthBackdrop from "./components/CodeGrowthBackdrop";
 
 export const metadata = {
   title: "CodeGrowth AI",
